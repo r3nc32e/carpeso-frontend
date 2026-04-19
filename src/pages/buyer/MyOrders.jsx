@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Car, X } from 'lucide-react';
+import { Car, X, FileDown } from 'lucide-react';
 import api from '../../api/axios';
 
 function MyOrders() {
@@ -24,6 +24,25 @@ function MyOrders() {
         }
     };
 
+    const handleDownloadReceipt = async (e, orderId) => {
+        e.stopPropagation();
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`http://localhost:8080/api/buyer/orders/${orderId}/receipt`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `receipt-${orderId}.pdf`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     const statusColor = (status) => {
         const colors = {
             PENDING: 'bg-yellow-100 text-yellow-700',
@@ -41,14 +60,14 @@ function MyOrders() {
 
     const ORDER_STEPS = [
         'PENDING', 'CONFIRMED', 'PREPARING',
-        'READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED'
+        'READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED',
     ];
 
     const getStepIndex = (status) => ORDER_STEPS.indexOf(status);
 
     const filtered = filter === 'ALL'
         ? orders
-        : orders.filter(o => o.status === filter);
+        : orders.filter((o) => o.status === filter);
 
     return (
         <div className="space-y-4">
@@ -57,20 +76,25 @@ function MyOrders() {
                 <p className="text-sm text-gray-400">{orders.length} total orders</p>
             </div>
 
-            {/* Filter */}
+            {/* Filter Tabs */}
             <div className="flex gap-2 flex-wrap">
                 {['ALL', 'PENDING', 'CONFIRMED', 'PREPARING', 'READY',
-                  'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED', 'CANCELLED'].map(s => (
+                  'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED', 'CANCELLED'].map((s) => (
                     <button
                         key={s}
                         onClick={() => setFilter(s)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition ${filter === s ? 'bg-red-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-100'}`}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition ${
+                            filter === s
+                                ? 'bg-red-600 text-white'
+                                : 'bg-white text-gray-500 hover:bg-gray-100'
+                        }`}
                     >
                         {s.replace(/_/g, ' ')}
                     </button>
                 ))}
             </div>
 
+            {/* Order List */}
             {loading ? (
                 <div className="text-center py-16 text-gray-400">Loading orders...</div>
             ) : filtered.length === 0 ? (
@@ -80,8 +104,9 @@ function MyOrders() {
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {filtered.map(o => (
-                        <div key={o.id}
+                    {filtered.map((o) => (
+                        <div
+                            key={o.id}
                             className="bg-white rounded-2xl shadow-sm p-5 hover:shadow-md transition cursor-pointer"
                             onClick={() => { setSelected(o); setShowModal(true); }}
                         >
@@ -117,8 +142,12 @@ function MyOrders() {
                                 <div className="mt-4">
                                     <div className="flex justify-between mb-1">
                                         {ORDER_STEPS.map((step, i) => (
-                                            <div key={step}
-                                                className={`flex-1 text-center text-xs font-semibold truncate px-0.5 ${i <= getStepIndex(o.status) ? 'text-red-600' : 'text-gray-300'}`}>
+                                            <div
+                                                key={step}
+                                                className={`flex-1 text-center text-xs font-semibold truncate px-0.5 ${
+                                                    i <= getStepIndex(o.status) ? 'text-red-600' : 'text-gray-300'
+                                                }`}
+                                            >
                                                 {i === 0 ? '•' : i <= getStepIndex(o.status) ? '✓' : '○'}
                                             </div>
                                         ))}
@@ -127,7 +156,7 @@ function MyOrders() {
                                         <div
                                             className="bg-red-500 h-1.5 rounded-full transition-all duration-500"
                                             style={{
-                                                width: `${Math.max(5, ((getStepIndex(o.status) + 1) / ORDER_STEPS.length) * 100)}%`
+                                                width: `${Math.max(5, ((getStepIndex(o.status) + 1) / ORDER_STEPS.length) * 100)}%`,
                                             }}
                                         />
                                     </div>
@@ -144,15 +173,25 @@ function MyOrders() {
 
             {/* Order Details Modal */}
             {showModal && selected && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-                        <div className="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white">
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+                    onClick={() => setShowModal(false)}
+                >
+                    <div
+                        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
                             <h3 className="text-lg font-bold text-gray-800">Order #{selected.id}</h3>
-                            <button onClick={() => setShowModal(false)}
-                                className="p-2 hover:bg-gray-100 rounded-lg transition">
+                            <button
+                                onClick={() => setShowModal(false)}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                            >
                                 <X size={18} />
                             </button>
                         </div>
+
                         <div className="p-6 space-y-4">
                             {/* Status Badge */}
                             <div className="flex justify-center">
@@ -161,17 +200,25 @@ function MyOrders() {
                                 </span>
                             </div>
 
-                            {/* Progress */}
+                            {/* Progress Steps */}
                             {!['CANCELLED', 'EXPIRED'].includes(selected.status) && (
                                 <div className="bg-gray-50 rounded-xl p-4">
                                     <p className="text-xs font-bold text-gray-500 uppercase mb-3">Order Progress</p>
                                     <div className="space-y-2">
                                         {ORDER_STEPS.map((step, i) => (
                                             <div key={step} className="flex items-center gap-3">
-                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${i < getStepIndex(selected.status) ? 'bg-green-500 text-white' : i === getStepIndex(selected.status) ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                                                    i < getStepIndex(selected.status)
+                                                        ? 'bg-green-500 text-white'
+                                                        : i === getStepIndex(selected.status)
+                                                        ? 'bg-red-600 text-white'
+                                                        : 'bg-gray-200 text-gray-400'
+                                                }`}>
                                                     {i < getStepIndex(selected.status) ? '✓' : i + 1}
                                                 </div>
-                                                <span className={`text-sm font-semibold ${i <= getStepIndex(selected.status) ? 'text-gray-800' : 'text-gray-300'}`}>
+                                                <span className={`text-sm font-semibold ${
+                                                    i <= getStepIndex(selected.status) ? 'text-gray-800' : 'text-gray-300'
+                                                }`}>
                                                     {step.replace(/_/g, ' ')}
                                                 </span>
                                             </div>
@@ -180,7 +227,7 @@ function MyOrders() {
                                 </div>
                             )}
 
-                            {/* Details */}
+                            {/* Order Details Grid */}
                             <div className="grid grid-cols-2 gap-3">
                                 {[
                                     { label: 'Vehicle', value: `${selected.vehicleBrand} ${selected.vehicleModel}` },
@@ -199,6 +246,7 @@ function MyOrders() {
                                 ))}
                             </div>
 
+                            {/* Admin Notes */}
                             {selected.adminNotes && (
                                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
                                     <p className="text-xs font-bold text-blue-600 uppercase mb-1">Admin Notes</p>
@@ -214,6 +262,19 @@ function MyOrders() {
                                         {new Date(selected.warrantyStartDate).toLocaleDateString('en-PH')} —{' '}
                                         {new Date(selected.warrantyEndDate).toLocaleDateString('en-PH')}
                                     </p>
+                                </div>
+                            )}
+
+                            {/* Download Receipt */}
+                            {selected.receiptGenerated && (
+                                <div className="pt-2">
+                                    <button
+                                        onClick={(e) => handleDownloadReceipt(e, selected.id)}
+                                        className="w-full flex items-center justify-center gap-2 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition"
+                                    >
+                                        <FileDown size={18} />
+                                        Download Receipt &amp; Warranty
+                                    </button>
                                 </div>
                             )}
                         </div>

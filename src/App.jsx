@@ -11,12 +11,16 @@ import Transactions from './pages/admin/Transactions';
 import Users from './pages/admin/Users';
 import AuditLogs from './pages/admin/AuditLogs';
 import ManageAdmins from './pages/admin/ManageAdmins';
+import Categories from './pages/admin/Categories';
 
 import BuyerLayout from './pages/buyer/BuyerLayout';
 import BuyerDashboard from './pages/buyer/BuyerDashboard';
 import Catalog from './pages/buyer/Catalog';
 import MyOrders from './pages/buyer/MyOrders';
 import WarrantyClaims from './pages/buyer/WarrantyClaims';
+import ForgotPassword from './pages/ForgotPassword';
+import Reviews from './pages/buyer/Reviews';
+
 
 const ProtectedRoute = ({ children, roles }) => {
     const { isAuthenticated, user } = useAuth();
@@ -68,14 +72,16 @@ function App() {
             <Route path="/admin/users" element={<AdminRoute><Users /></AdminRoute>} />
             <Route path="/admin/audit-logs" element={<AdminRoute><AuditLogs /></AdminRoute>} />
             <Route path="/admin/manage-admins" element={<AdminRoute><ManageAdmins /></AdminRoute>} />
+            <Route path="/admin/categories" element={<AdminRoute><Categories /></AdminRoute>} />
 
             {/* Buyer Routes */}
             <Route path="/buyer/dashboard" element={<BuyerRoute><BuyerDashboard /></BuyerRoute>} />
             <Route path="/buyer/catalog" element={<BuyerRoute><Catalog /></BuyerRoute>} />
             <Route path="/buyer/orders" element={<BuyerRoute><MyOrders /></BuyerRoute>} />
             <Route path="/buyer/warranty-claims" element={<BuyerRoute><WarrantyClaims /></BuyerRoute>} />
-
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="*" element={<Navigate to={getDefaultRoute()} />} />
+            <Route path="/buyer/reviews" element={<BuyerRoute><Reviews /></BuyerRoute>} />        
         </Routes>
     );
 }
