@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, X, Check, CheckCheck } from 'lucide-react';
+import { Bell, X, CheckCheck } from 'lucide-react';
 import api from '../api/axios';
 
-function NotificationDropdown() {
+function NotificationDropdown({ variant = 'admin' }) {
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [open, setOpen] = useState(false);
@@ -11,7 +11,6 @@ function NotificationDropdown() {
 
     useEffect(() => {
         fetchNotifications();
-        // Poll every 30 seconds
         const interval = setInterval(fetchNotifications, 30000);
         return () => clearInterval(interval);
     }, []);
@@ -60,16 +59,13 @@ function NotificationDropdown() {
         }
     };
 
-    const notifIcon = (type) => {
-        const icons = {
-            RESERVATION: '🚗',
-            ORDER_UPDATE: '📦',
-            WARRANTY_CLAIM: '🛡️',
-            REVIEW: '⭐',
-            SYSTEM: '🔔',
-        };
-        return icons[type] || '🔔';
-    };
+    const notifIcon = (type) => ({
+        RESERVATION: '🚗',
+        ORDER_UPDATE: '📦',
+        WARRANTY_CLAIM: '🛡️',
+        REVIEW: '⭐',
+        SYSTEM: '🔔',
+    }[type] || '🔔');
 
     const timeAgo = (dateStr) => {
         const diff = Date.now() - new Date(dateStr).getTime();
@@ -82,25 +78,32 @@ function NotificationDropdown() {
         return 'Just now';
     };
 
+    // Admin = gray bg bell, Buyer = red bg bell
+    const bellBtnClass = variant === 'admin'
+        ? 'relative p-2 rounded-full hover:bg-gray-100 transition'
+        : 'relative p-2 rounded-full hover:bg-red-700 transition';
+
+    const bellIconClass = variant === 'admin'
+        ? 'text-gray-600'
+        : 'text-red-100';
+
+    const badgeClass = variant === 'admin'
+        ? 'absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-600 text-white rounded-full text-xs font-bold flex items-center justify-center'
+        : 'absolute -top-0.5 -right-0.5 w-5 h-5 bg-white text-red-600 rounded-full text-xs font-bold flex items-center justify-center';
+
     return (
         <div className="relative" ref={dropdownRef}>
-            {/* Bell Button */}
-            <button
-                onClick={() => setOpen(!open)}
-                className="relative p-2 rounded-full hover:bg-red-700 transition"
-            >
-                <Bell size={18} className="text-red-100" />
+            <button onClick={() => setOpen(!open)} className={bellBtnClass}>
+                <Bell size={18} className={bellIconClass} />
                 {unreadCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-white text-red-600 rounded-full text-xs font-bold flex items-center justify-center">
+                    <span className={badgeClass}>
                         {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                 )}
             </button>
 
-            {/* Dropdown */}
             {open && (
                 <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
-                    {/* Header */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
                         <div className="flex items-center gap-2">
                             <Bell size={16} className="text-red-600" />
@@ -118,20 +121,16 @@ function NotificationDropdown() {
                                     disabled={loading}
                                     className="text-xs text-red-600 hover:underline font-semibold flex items-center gap-1"
                                 >
-                                    <CheckCheck size={12} />
-                                    Mark all read
+                                    <CheckCheck size={12} /> Mark all read
                                 </button>
                             )}
-                            <button
-                                onClick={() => setOpen(false)}
-                                className="p-1 hover:bg-gray-200 rounded-lg transition"
-                            >
+                            <button onClick={() => setOpen(false)}
+                                className="p-1 hover:bg-gray-200 rounded-lg transition">
                                 <X size={14} className="text-gray-400" />
                             </button>
                         </div>
                     </div>
 
-                    {/* Notifications List */}
                     <div className="max-h-80 overflow-y-auto">
                         {notifications.length === 0 ? (
                             <div className="text-center py-10">
@@ -142,39 +141,32 @@ function NotificationDropdown() {
                             notifications.map(n => (
                                 <div
                                     key={n.id}
-                                    className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition border-b border-gray-50 cursor-pointer ${!n.read ? 'bg-red-50' : ''}`}
                                     onClick={() => !n.read && markAsRead(n.id)}
+                                    className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition border-b border-gray-50 cursor-pointer ${!n.read ? 'bg-red-50' : ''}`}
                                 >
                                     <span className="text-xl flex-shrink-0 mt-0.5">
                                         {notifIcon(n.type)}
                                     </span>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-start justify-between gap-2">
-                                            <p className={`text-sm font-semibold text-gray-800 truncate ${!n.read ? 'text-red-700' : ''}`}>
+                                            <p className={`text-sm font-semibold truncate ${!n.read ? 'text-red-700' : 'text-gray-800'}`}>
                                                 {n.title}
                                             </p>
                                             {!n.read && (
                                                 <div className="w-2 h-2 bg-red-600 rounded-full flex-shrink-0 mt-1" />
                                             )}
                                         </div>
-                                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
-                                            {n.message}
-                                        </p>
-                                        <p className="text-xs text-gray-400 mt-1">
-                                            {timeAgo(n.createdAt)}
-                                        </p>
+                                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.message}</p>
+                                        <p className="text-xs text-gray-400 mt-1">{timeAgo(n.createdAt)}</p>
                                     </div>
                                 </div>
                             ))
                         )}
                     </div>
 
-                    {/* Footer */}
                     {notifications.length > 0 && (
                         <div className="px-4 py-2 border-t border-gray-100 bg-gray-50 text-center">
-                            <p className="text-xs text-gray-400">
-                                {notifications.length} total notifications
-                            </p>
+                            <p className="text-xs text-gray-400">{notifications.length} total notifications</p>
                         </div>
                     )}
                 </div>

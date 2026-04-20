@@ -52,7 +52,7 @@ function BuyerLayout({ children }) {
 
                     {/* Right Side */}
                     <div className="flex items-center gap-2">
-                        <NotificationDropdown />
+                        <NotificationDropdown variant="buyer" />
 
                         <div className="hidden sm:flex items-center gap-2 bg-red-700 px-3 py-1.5 rounded-full">
                             <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center text-red-600 text-xs font-bold">
