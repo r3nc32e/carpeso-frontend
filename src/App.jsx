@@ -3,6 +3,11 @@ import { useAuth } from "./context/AuthContext";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Landing from "./pages/Landing";
+import ForgotPassword from "./pages/ForgotPassword";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
+import BuyerProfile from "./pages/buyer/Profile";
 
 import AdminLayout from "./pages/admin/AdminLayout";
 import Overview from "./pages/admin/Overview";
@@ -13,13 +18,14 @@ import AuditLogs from "./pages/admin/AuditLogs";
 import ManageAdmins from "./pages/admin/ManageAdmins";
 import Categories from "./pages/admin/Categories";
 import AdminReviews from "./pages/admin/Reviews";
+import SalesAnalytics from "./pages/admin/SalesAnalytics";
+import AdminProfile from "./pages/admin/Profile";
 
 import BuyerLayout from "./pages/buyer/BuyerLayout";
 import BuyerDashboard from "./pages/buyer/BuyerDashboard";
 import Catalog from "./pages/buyer/Catalog";
 import MyOrders from "./pages/buyer/MyOrders";
 import WarrantyClaims from "./pages/buyer/WarrantyClaims";
-import ForgotPassword from "./pages/ForgotPassword";
 import Reviews from "./pages/buyer/Reviews";
 import VehicleDetail from "./pages/buyer/VehicleDetail";
 
@@ -61,16 +67,66 @@ function App() {
       </div>
     );
 
-  const getDefaultRoute = () => {
-    if (!isAuthenticated()) return "/login";
-    if (user?.role === "BUYER") return "/buyer/dashboard";
-    return "/admin/dashboard";
-  };
-
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      {/* Landing — default for guests */}
+      <Route
+        path="/"
+        element={
+          isAuthenticated() ? (
+            <Navigate
+              to={
+                user?.role === "BUYER" ? "/buyer/dashboard" : "/admin/dashboard"
+              }
+            />
+          ) : (
+            <Landing />
+          )
+        }
+      />
+
+      <Route
+        path="/admin/profile"
+        element={
+          <AdminRoute>
+            <AdminProfile />
+          </AdminRoute>
+        }
+      />
+      {/* Auth */}
+      <Route
+        path="/login"
+        element={
+          isAuthenticated() ? (
+            <Navigate
+              to={
+                user?.role === "BUYER" ? "/buyer/dashboard" : "/admin/dashboard"
+              }
+            />
+          ) : (
+            <Login />
+          )
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          isAuthenticated() ? <Navigate to="/buyer/dashboard" /> : <Register />
+        }
+      />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route
+        path="/buyer/profile"
+        element={
+          <BuyerRoute>
+            <BuyerProfile />
+          </BuyerRoute>
+        }
+      />
+      {/* Public Vehicle Detail — for guests */}
+      <Route path="/vehicles/:id" element={<VehicleDetail />} />
 
       {/* Admin Routes */}
       <Route
@@ -86,6 +142,14 @@ function App() {
         element={
           <AdminRoute>
             <Vehicles />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/categories"
+        element={
+          <AdminRoute>
+            <Categories />
           </AdminRoute>
         }
       />
@@ -122,18 +186,18 @@ function App() {
         }
       />
       <Route
-        path="/admin/categories"
-        element={
-          <AdminRoute>
-            <Categories />
-          </AdminRoute>
-        }
-      />
-      <Route
         path="/admin/reviews"
         element={
           <AdminRoute>
             <AdminReviews />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/sales"
+        element={
+          <AdminRoute>
+            <SalesAnalytics />
           </AdminRoute>
         }
       />
@@ -156,6 +220,14 @@ function App() {
         }
       />
       <Route
+        path="/buyer/vehicles/:id"
+        element={
+          <BuyerRoute>
+            <VehicleDetail />
+          </BuyerRoute>
+        }
+      />
+      <Route
         path="/buyer/orders"
         element={
           <BuyerRoute>
@@ -171,23 +243,28 @@ function App() {
           </BuyerRoute>
         }
       />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="*" element={<Navigate to={getDefaultRoute()} />} />
-      <Route
-        path="/buyer/vehicles/:id"
-        element={
-          <BuyerRoute>
-            <VehicleDetail />
-          </BuyerRoute>
-        }
-      />
-      <Route path="/vehicles/:id" element={<VehicleDetail />} />
       <Route
         path="/buyer/reviews"
         element={
           <BuyerRoute>
             <Reviews />
           </BuyerRoute>
+        }
+      />
+
+      {/* Catch all */}
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to={
+              isAuthenticated()
+                ? user?.role === "BUYER"
+                  ? "/buyer/dashboard"
+                  : "/admin/dashboard"
+                : "/"
+            }
+          />
         }
       />
     </Routes>

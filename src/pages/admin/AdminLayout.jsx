@@ -13,6 +13,8 @@ import {
   LogOut,
   Tag,
   Star,
+  TrendingUp,
+  UserCircle,
 } from "lucide-react";
 import NotificationDropdown from "../../components/NotificationDropdown";
 
@@ -65,6 +67,12 @@ function AdminLayout({ children }) {
       show: hasPrivilege("ACCOUNT_MANAGER"),
     },
     {
+      label: "Sales Analytics",
+      icon: <TrendingUp size={18} />,
+      path: "/admin/sales",
+      show: hasPrivilege("SALES_ANALYST") || isSuperAdmin,
+    },
+    {
       label: "Audit Logs",
       icon: <ScrollText size={18} />,
       path: "/admin/audit-logs",
@@ -75,6 +83,12 @@ function AdminLayout({ children }) {
       icon: <ShieldCheck size={18} />,
       path: "/admin/manage-admins",
       show: isSuperAdmin,
+    },
+    {
+      label: "My Profile",
+      icon: <UserCircle size={18} />,
+      path: "/admin/profile",
+      show: true,
     },
   ];
 

@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, X, Check, Tag } from 'lucide-react';
 import api from '../../api/axios';
+import usePageTitle from '../../hooks/usePageTitle';
+
 
 function Categories() {
+    usePageTitle('Categories');
+    
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);

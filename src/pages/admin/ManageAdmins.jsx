@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Plus, Trash2, X, Check, ShieldCheck } from "lucide-react";
 import api from "../../api/axios";
+import usePageTitle from '../../hooks/usePageTitle';
+
 
 const ALL_PRIVILEGES = [
   "INVENTORY_MANAGER",
@@ -11,6 +13,8 @@ const ALL_PRIVILEGES = [
 ];
 
 function ManageAdmins() {
+  usePageTitle('Manage Admins');
+  
   const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);

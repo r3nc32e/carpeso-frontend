@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
+import usePageTitle from '../../hooks/usePageTitle';
+
 
 function AuditLogs() {
+    usePageTitle('Audit Logs');
+    
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('ALL');

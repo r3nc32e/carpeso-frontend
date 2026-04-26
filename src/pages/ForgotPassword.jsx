@@ -2,8 +2,11 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 import { Eye, EyeOff } from 'lucide-react';
+import usePageTitle from '../hooks/usePageTitle';
 
 function ForgotPassword() {
+    usePageTitle('Forgot Password');
+    
     const [step, setStep] = useState('email');
     const [email, setEmail] = useState('');
     const [otp, setOtp] = useState('');

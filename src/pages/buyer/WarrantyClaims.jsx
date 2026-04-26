@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import { ShieldCheck, Plus, X } from 'lucide-react';
 import api from '../../api/axios';
+import usePageTitle from '../../hooks/usePageTitle';
+
 
 function WarrantyClaims() {
+    usePageTitle('Warranty Claims');
+    
     const [claims, setClaims] = useState([]);
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);

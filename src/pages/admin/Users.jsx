@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Eye, ShieldAlert, ShieldOff, ShieldCheck, Trash2, X, Check } from 'lucide-react';
 import api from '../../api/axios';
+import usePageTitle from '../../hooks/usePageTitle';
+
 
 function Users() {
+    usePageTitle('Users');
+    
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState(null);

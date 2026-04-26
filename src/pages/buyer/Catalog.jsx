@@ -1,390 +1,252 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { Car, Search, Filter, X } from "lucide-react";
-import api from "../../api/axios";
+import { useState, useEffect } from 'react';
+import { Car, Search, SlidersHorizontal, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import api from '../../api/axios';
+import usePageTitle from '../../hooks/usePageTitle';
+
+const IMG_BASE = 'http://localhost:8080/api/files';
 
 function Catalog() {
-  const navigate = useNavigate();
-  const [vehicles, setVehicles] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [showReserveModal, setShowReserveModal] = useState(false);
-  const [success, setSuccess] = useState("");
-  const [error, setError] = useState("");
+    usePageTitle('Browse Vehicles');
+    const [vehicles, setVehicles] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState('');
+    const [showFilters, setShowFilters] = useState(false);
+    const [filters, setFilters] = useState({
+        status: 'ALL',
+        condition: '',
+        fuelType: '',
+        transmission: '',
+        minPrice: '',
+        maxPrice: '',
+        minYear: '',
+        maxYear: '',
+    });
+    const navigate = useNavigate();
 
-  const [reserveForm, setReserveForm] = useState({
-    deliveryAddress: "",
-    deliveryNotes: "",
-    paymentMode: "",
-  });
+    useEffect(() => { fetchVehicles(); }, []);
 
-  const PAYMENT_MODES = [
-    "CASH",
-    "GCASH",
-    "MAYA",
-    "BANK_TRANSFER",
-    "CAR_FINANCING",
-    "CREDIT_CARD",
-  ];
+    const fetchVehicles = async () => {
+        try {
+            const res = await api.get('/public/vehicles');
+            setVehicles(res.data.data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  useEffect(() => {
-    fetchVehicles();
-  }, []);
+    const getImageUrl = (url) => {
+        if (!url) return null;
+        return `${IMG_BASE}${url.replace('/uploads', '')}`;
+    };
 
-  const fetchVehicles = async () => {
-    try {
-      const res = await api.get("/public/vehicles");
-      setVehicles(res.data.data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const clearFilters = () => {
+        setFilters({ status: 'ALL', condition: '', fuelType: '', transmission: '', minPrice: '', maxPrice: '', minYear: '', maxYear: '' });
+        setSearch('');
+    };
 
-  const handleReserve = async () => {
-    if (!reserveForm.deliveryAddress || !reserveForm.paymentMode) {
-      setError("Please fill all required fields!");
-      return;
-    }
-    try {
-      await api.post("/buyer/reserve", {
-        vehicleId: selected.id,
-        deliveryAddress: reserveForm.deliveryAddress,
-        deliveryNotes: reserveForm.deliveryNotes,
-        paymentMode: reserveForm.paymentMode,
-      });
-      setSuccess("Reservation submitted successfully!");
-      setShowReserveModal(false);
-      setShowModal(false);
-      fetchVehicles();
-      setTimeout(() => setSuccess(""), 4000);
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to reserve vehicle!");
-    }
-  };
+    const filtered = vehicles.filter(v => {
+        const matchSearch = search === '' ||
+            `${v.brand} ${v.model} ${v.year} ${v.color} ${v.categoryName} ${v.fuelType} ${v.bodyType} ${v.transmission}`
+                .toLowerCase().includes(search.toLowerCase());
+        const matchStatus = filters.status === 'ALL' || v.status === filters.status;
+        const matchCondition = !filters.condition || v.condition === filters.condition;
+        const matchFuel = !filters.fuelType || v.fuelType === filters.fuelType;
+        const matchTransmission = !filters.transmission || v.transmission === filters.transmission;
+        const matchMinPrice = !filters.minPrice || Number(v.price) >= Number(filters.minPrice);
+        const matchMaxPrice = !filters.maxPrice || Number(v.price) <= Number(filters.maxPrice);
+        const matchMinYear = !filters.minYear || v.year >= Number(filters.minYear);
+        const matchMaxYear = !filters.maxYear || v.year <= Number(filters.maxYear);
+        return matchSearch && matchStatus && matchCondition && matchFuel &&
+            matchTransmission && matchMinPrice && matchMaxPrice && matchMinYear && matchMaxYear;
+    });
 
-  const filtered = vehicles.filter((v) =>
-    `${v.brand} ${v.model} ${v.year} ${v.color} ${v.categoryName}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
+    const hasActiveFilters = filters.status !== 'ALL' || filters.condition ||
+        filters.fuelType || filters.transmission || filters.minPrice ||
+        filters.maxPrice || filters.minYear || filters.maxYear;
 
-  const inputClass =
-    "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition";
+    const statusColor = (status) => ({
+        AVAILABLE: 'bg-green-100 text-green-700',
+        RESERVED: 'bg-yellow-100 text-yellow-700',
+        SOLD: 'bg-gray-100 text-gray-500',
+    }[status] || 'bg-gray-100 text-gray-600');
 
-  return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div>
-        <h2 className="text-xl font-bold text-gray-800">Browse Vehicles</h2>
-        <p className="text-sm text-gray-400">
-          {vehicles.length} vehicles available
-        </p>
-      </div>
+    const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white transition";
 
-      {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm">
-          ✅ {success}
-        </div>
-      )}
+    return (
+        <div className="space-y-4">
+            <div>
+                <h2 className="text-xl font-bold text-gray-800">Browse Vehicles</h2>
+                <p className="text-sm text-gray-400">{filtered.length} of {vehicles.length} vehicles</p>
+            </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search size={16} className="absolute left-3 top-3 text-gray-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition bg-white"
-          placeholder="Search by brand, model, year, color..."
-        />
-      </div>
-
-      {/* Vehicle Grid */}
-      {loading ? (
-        <div className="text-center py-16 text-gray-400">
-          Loading vehicles...
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">No vehicles found</div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((v) => (
-            <div
-              key={v.id}
-              onClick={() => navigate(`/buyer/vehicles/${v.id}`)}
-              className="bg-white rounded-2xl shadow-sm hover:shadow-md transition overflow-hidden cursor-pointer"
-            >
-              {/* Image Placeholder */}
-              <div className="bg-gray-100 h-40 flex items-center justify-center">
-                <Car size={48} className="text-gray-300" />
-              </div>
-              <div className="p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <h3 className="font-bold text-gray-800">
-                      {v.brand} {v.model}
-                    </h3>
-                    <p className="text-xs text-gray-400">
-                      {v.year} • {v.color} • {v.categoryName}
-                    </p>
-                  </div>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-bold ${v.status === "AVAILABLE" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}
-                  >
-                    {v.status}
-                  </span>
+            {/* Search + Filter Toggle */}
+            <div className="flex gap-2">
+                <div className="relative flex-1">
+                    <Search size={16} className="absolute left-3 top-3 text-gray-400" />
+                    <input type="text" value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition bg-white"
+                        placeholder="Search brand, model, fuel type, body type..." />
                 </div>
-                <div className="flex items-center justify-between mt-3">
-                  <p className="text-red-600 font-bold text-lg">
-                    ₱{Number(v.price).toLocaleString()}
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/buyer/vehicles/${v.id}`);
-                      }}
-                      className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-semibold hover:bg-gray-50 transition"
-                    >
-                      Details
+                <button onClick={() => setShowFilters(!showFilters)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition ${showFilters || hasActiveFilters ? 'bg-red-600 text-white' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'}`}>
+                    <SlidersHorizontal size={16} />
+                    <span className="hidden sm:block">Filters</span>
+                    {hasActiveFilters && <span className="w-2 h-2 bg-white rounded-full" />}
+                </button>
+                {hasActiveFilters && (
+                    <button onClick={clearFilters}
+                        className="flex items-center gap-1 px-3 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm hover:bg-gray-200 transition">
+                        <X size={14} /> Clear
                     </button>
-                    {v.status === "AVAILABLE" && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelected(v);
-                          setReserveForm({
-                            deliveryAddress: "",
-                            deliveryNotes: "",
-                            paymentMode: "",
-                          });
-                          setError("");
-                          setShowReserveModal(true);
-                        }}
-                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition"
-                      >
-                        Reserve
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Vehicle Details Modal */}
-      {showModal && selected && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white">
-              <h3 className="text-lg font-bold text-gray-800">
-                {selected.brand} {selected.model}
-              </h3>
-              <button
-                onClick={() => navigate(`/buyer/vehicles/${selected.id}`)}
-                className="bg-white rounded-2xl shadow-sm hover:shadow-md transition overflow-hidden cursor-pointer"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="bg-gray-100 h-48 rounded-xl flex items-center justify-center">
-                <Car size={64} className="text-gray-300" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: "Brand", value: selected.brand },
-                  { label: "Model", value: selected.model },
-                  { label: "Year", value: selected.year },
-                  { label: "Color", value: selected.color },
-                  { label: "Category", value: selected.categoryName },
-                  {
-                    label: "Condition",
-                    value: selected.condition?.replace(/_/g, " ") || "—",
-                  },
-                  { label: "Fuel Type", value: selected.fuelType || "—" },
-                  {
-                    label: "Transmission",
-                    value: selected.transmission || "—",
-                  },
-                  {
-                    label: "Mileage",
-                    value: selected.mileage
-                      ? `${selected.mileage.toLocaleString()} km`
-                      : "—",
-                  },
-                  {
-                    label: "Warranty",
-                    value: selected.warrantyYears
-                      ? `${selected.warrantyYears} year(s)`
-                      : "—",
-                  },
-                  { label: "Plate Number", value: selected.plateNumber || "—" },
-                  { label: "Status", value: selected.status },
-                ].map(({ label, value }) => (
-                  <div key={label}>
-                    <p className="text-xs text-gray-400 font-semibold uppercase">
-                      {label}
-                    </p>
-                    <p className="text-sm text-gray-800 font-medium">{value}</p>
-                  </div>
-                ))}
-              </div>
-              {selected.description && (
-                <div>
-                  <p className="text-xs text-gray-400 font-semibold uppercase mb-1">
-                    Description
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {selected.description}
-                  </p>
-                </div>
-              )}
-              <div className="flex items-center justify-between pt-2">
-                <p className="text-2xl font-bold text-red-600">
-                  ₱{Number(selected.price).toLocaleString()}
-                </p>
-                {selected.status === "AVAILABLE" && (
-                  <button
-                    onClick={() => {
-                      setShowModal(false);
-                      setReserveForm({
-                        deliveryAddress: "",
-                        deliveryNotes: "",
-                        paymentMode: "",
-                      });
-                      setError("");
-                      setShowReserveModal(true);
-                    }}
-                    className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition"
-                  >
-                    Reserve Now
-                  </button>
                 )}
-              </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Reserve Modal */}
-      {showReserveModal && selected && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-800">
-                Reserve Vehicle
-              </h3>
-              <button
-                onClick={() => setShowReserveModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="bg-gray-50 rounded-xl p-3">
-                <p className="font-bold text-gray-800">
-                  {selected.brand} {selected.model}
-                </p>
-                <p className="text-sm text-gray-500">
-                  {selected.year} • ₱{Number(selected.price).toLocaleString()}
-                </p>
-              </div>
+            {/* Filter Panel */}
+            {showFilters && (
+                <div className="bg-white rounded-2xl shadow-sm p-4 space-y-4">
+                    <h3 className="font-bold text-gray-700 text-sm">Filter Vehicles</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Status</label>
+                            <select value={filters.status}
+                                onChange={e => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                                className={selectClass}>
+                                <option value="ALL">All Status</option>
+                                <option value="AVAILABLE">Available</option>
+                                <option value="RESERVED">Reserved</option>
+                                <option value="SOLD">Sold</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Condition</label>
+                            <select value={filters.condition}
+                                onChange={e => setFilters(prev => ({ ...prev, condition: e.target.value }))}
+                                className={selectClass}>
+                                <option value="">All Conditions</option>
+                                <option value="BRAND_NEW">Brand New</option>
+                                <option value="PRE_OWNED">Pre-Owned</option>
+                                <option value="CERTIFIED_PRE_OWNED">Certified Pre-Owned</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Fuel Type</label>
+                            <select value={filters.fuelType}
+                                onChange={e => setFilters(prev => ({ ...prev, fuelType: e.target.value }))}
+                                className={selectClass}>
+                                <option value="">All Fuel Types</option>
+                                <option value="Gasoline">Gasoline</option>
+                                <option value="Diesel">Diesel</option>
+                                <option value="Electric">Electric</option>
+                                <option value="Hybrid">Hybrid</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Transmission</label>
+                            <select value={filters.transmission}
+                                onChange={e => setFilters(prev => ({ ...prev, transmission: e.target.value }))}
+                                className={selectClass}>
+                                <option value="">All Transmissions</option>
+                                <option value="Automatic">Automatic</option>
+                                <option value="Manual">Manual</option>
+                            </select>
+                        </div>
+                    </div>
 
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
-                  ⚠️ {error}
+                    {/* Price Range */}
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase">Price Range (₱)</label>
+                        <div className="flex gap-2 items-center">
+                            <input type="number" value={filters.minPrice}
+                                onChange={e => setFilters(prev => ({ ...prev, minPrice: e.target.value }))}
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                                placeholder="Min price" />
+                            <span className="text-gray-400 text-sm">—</span>
+                            <input type="number" value={filters.maxPrice}
+                                onChange={e => setFilters(prev => ({ ...prev, maxPrice: e.target.value }))}
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                                placeholder="Max price" />
+                        </div>
+                    </div>
+
+                    {/* Year Range */}
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase">Year Range</label>
+                        <div className="flex gap-2 items-center">
+                            <input type="number" value={filters.minYear}
+                                onChange={e => setFilters(prev => ({ ...prev, minYear: e.target.value }))}
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                                placeholder="From year" />
+                            <span className="text-gray-400 text-sm">—</span>
+                            <input type="number" value={filters.maxYear}
+                                onChange={e => setFilters(prev => ({ ...prev, maxYear: e.target.value }))}
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                                placeholder="To year" />
+                        </div>
+                    </div>
                 </div>
-              )}
+            )}
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase">
-                  Payment Mode *
-                </label>
-                <select
-                  value={reserveForm.paymentMode}
-                  onChange={(e) =>
-                    setReserveForm((prev) => ({
-                      ...prev,
-                      paymentMode: e.target.value,
-                    }))
-                  }
-                  className={inputClass}
-                >
-                  <option value="">Select Payment Mode</option>
-                  {PAYMENT_MODES.map((p) => (
-                    <option key={p} value={p}>
-                      {p.replace(/_/g, " ")}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase">
-                  Delivery Address *
-                </label>
-                <textarea
-                  value={reserveForm.deliveryAddress}
-                  onChange={(e) =>
-                    setReserveForm((prev) => ({
-                      ...prev,
-                      deliveryAddress: e.target.value,
-                    }))
-                  }
-                  className={inputClass}
-                  rows={3}
-                  placeholder="Enter your complete delivery address..."
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase">
-                  Delivery Notes
-                </label>
-                <textarea
-                  value={reserveForm.deliveryNotes}
-                  onChange={(e) =>
-                    setReserveForm((prev) => ({
-                      ...prev,
-                      deliveryNotes: e.target.value,
-                    }))
-                  }
-                  className={inputClass}
-                  rows={2}
-                  placeholder="Additional notes (optional)..."
-                />
-              </div>
-
-              <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-xs">
-                ⚠️ Reservation expires in 48 hours. Admin will confirm your
-                booking.
-              </div>
-            </div>
-            <div className="flex gap-3 p-6 border-t border-gray-100">
-              <button
-                onClick={() => setShowReserveModal(false)}
-                className="flex-1 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition font-semibold"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleReserve}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition"
-              >
-                Confirm Reservation
-              </button>
-            </div>
-          </div>
+            {/* Vehicle Grid */}
+            {loading ? (
+                <div className="text-center py-16 text-gray-400">Loading vehicles...</div>
+            ) : filtered.length === 0 ? (
+                <div className="text-center py-16">
+                    <Car size={48} className="mx-auto mb-3 text-gray-200" />
+                    <p className="text-gray-400">No vehicles found</p>
+                    {hasActiveFilters && (
+                        <button onClick={clearFilters}
+                            className="mt-3 text-red-600 font-semibold text-sm hover:underline">
+                            Clear all filters
+                        </button>
+                    )}
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filtered.map(v => (
+                        <div key={v.id}
+                            onClick={() => navigate(`/buyer/vehicles/${v.id}`)}
+                            className="bg-white rounded-2xl shadow-sm hover:shadow-md transition overflow-hidden cursor-pointer group">
+                            {v.imageUrls?.length > 0 ? (
+                                <img src={getImageUrl(v.imageUrls[0])}
+                                    alt={`${v.brand} ${v.model}`}
+                                    className="w-full h-40 object-cover group-hover:scale-105 transition duration-300" />
+                            ) : (
+                                <div className="bg-gray-100 h-40 flex items-center justify-center">
+                                    <Car size={48} className="text-gray-300" />
+                                </div>
+                            )}
+                            <div className="p-4">
+                                <div className="flex items-start justify-between mb-2">
+                                    <div>
+                                        <h3 className="font-bold text-gray-800">{v.brand} {v.model}</h3>
+                                        <p className="text-xs text-gray-400">{v.year} • {v.color} • {v.categoryName}</p>
+                                    </div>
+                                    <span className={`px-2 py-1 rounded-full text-xs font-bold flex-shrink-0 ${statusColor(v.status)}`}>
+                                        {v.status}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
+                                    {v.fuelType && <span>⛽ {v.fuelType}</span>}
+                                    {v.transmission && <span>⚙️ {v.transmission}</span>}
+                                    {v.condition && <span>🏷️ {v.condition.replace(/_/g, ' ')}</span>}
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <p className="text-red-600 font-bold text-lg">₱{Number(v.price).toLocaleString()}</p>
+                                    {v.quantity > 1 && (
+                                        <span className="text-xs text-gray-400">{v.quantity} units</span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
-      )}
-    </div>
-  );
+    );
 }
 
 export default Catalog;
