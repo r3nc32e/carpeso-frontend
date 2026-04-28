@@ -250,13 +250,17 @@ function Landing() {
                                                 <h3 className="font-bold text-gray-900">{v.brand} {v.model}</h3>
                                                 <p className="text-xs text-gray-400">{v.year} • {v.color} • {v.categoryName}</p>
                                             </div>
-                                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusColor(v.status)}`}>
-                                                {v.status}
-                                            </span>
                                         </div>
                                         <div className="flex items-center justify-between mt-3">
                                             <p className="text-red-600 font-bold text-xl">₱{Number(v.price).toLocaleString()}</p>
-                                            <span className="text-xs text-gray-400">{v.fuelType || ''}</span>
+                                            <div className="text-right">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusColor(v.status)}`}>
+                                                    {v.status}
+                                                </span>
+                                                {v.quantity > 0 && v.status === 'AVAILABLE' && (
+                                                    <p className="text-xs text-gray-400 mt-1">{v.quantity} unit{v.quantity !== 1 ? 's' : ''} left</p>
+                                                )}
+                                            </div>
                                         </div>
                                         {v.status === 'AVAILABLE' ? (
                                             <button

@@ -1,51 +1,38 @@
 import { useState, useEffect } from 'react';
-import { Car, ClipboardList, Users, ScrollText, TrendingUp, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { Car, Users, ClipboardList, TrendingUp, Star, AlertCircle } from 'lucide-react';
 import api from '../../api/axios';
 import usePageTitle from '../../hooks/usePageTitle';
 
-
-const IMG_BASE = 'http://localhost:8080/api/files';
-
 function Overview() {
     usePageTitle('Dashboard');
-    
+    const { user } = useAuth();
     const navigate = useNavigate();
-    const [stats, setStats] = useState({
-        vehicles: 0, transactions: 0,
-        users: 0, logs: 0,
-        totalSales: 0, pendingOrders: 0,
-    });
+
+    const [stats, setStats] = useState(null);
     const [recentTransactions, setRecentTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => { fetchData(); }, []);
+    const isSuperAdmin = user?.role === 'SUPERADMIN';
+    const privilege = user?.privileges?.[0] || '';
 
-    const fetchData = async () => {
+    const canAccess = (requiredPrivilege) => {
+        if (isSuperAdmin) return true;
+        return privilege === requiredPrivilege;
+    };
+
+    useEffect(() => {
+        fetchOverview();
+        if (canAccess('TRANSACTION_MANAGER')) {
+            fetchRecentTransactions();
+        }
+    }, []);
+
+    const fetchOverview = async () => {
         try {
-            const [vRes, tRes, uRes, lRes] = await Promise.all([
-                api.get('/admin/vehicles'),
-                api.get('/admin/transactions'),
-                api.get('/admin/users'),
-                api.get('/admin/audit-logs'),
-            ]);
-
-            const transactions = tRes.data.data || [];
-            const totalSales = transactions
-                .filter(t => ['DELIVERED', 'COMPLETED'].includes(t.status))
-                .reduce((sum, t) => sum + Number(t.amount || 0), 0);
-            const pendingOrders = transactions
-                .filter(t => t.status === 'PENDING').length;
-
-            setStats({
-                vehicles: vRes.data.data?.length || 0,
-                transactions: transactions.length,
-                users: uRes.data.data?.length || 0,
-                logs: lRes.data.data?.length || 0,
-                totalSales,
-                pendingOrders,
-            });
-            setRecentTransactions(transactions.slice(0, 5));
+            const res = await api.get('/admin/overview');
+            setStats(res.data.data);
         } catch (err) {
             console.error(err);
         } finally {
@@ -53,12 +40,14 @@ function Overview() {
         }
     };
 
-    const statCards = [
-        { label: 'Total Vehicles', value: stats.vehicles, icon: <Car size={24} />, color: 'bg-red-600', path: '/admin/vehicles' },
-        { label: 'Total Transactions', value: stats.transactions, icon: <ClipboardList size={24} />, color: 'bg-gray-800', path: '/admin/transactions' },
-        { label: 'Total Buyers', value: stats.users, icon: <Users size={24} />, color: 'bg-red-500', path: '/admin/users' },
-        { label: 'Pending Orders', value: stats.pendingOrders, icon: <ScrollText size={24} />, color: 'bg-yellow-500', path: '/admin/transactions' },
-    ];
+    const fetchRecentTransactions = async () => {
+        try {
+            const res = await api.get('/admin/transactions');
+            setRecentTransactions((res.data.data || []).slice(0, 5));
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
     const statusColor = (status) => ({
         PENDING: 'bg-yellow-100 text-yellow-700',
@@ -71,87 +60,183 @@ function Overview() {
         CANCELLED: 'bg-red-100 text-red-700',
     }[status] || 'bg-gray-100 text-gray-600');
 
-    if (loading) return (
-        <div className="flex items-center justify-center h-64">
-            <p className="text-gray-400 text-sm animate-pulse">Loading Dashboard...</p>
-        </div>
-    );
+    // All possible stat cards
+    const allCards = [
+        {
+            label: 'Total Vehicles',
+            value: stats?.totalVehicles ?? '—',
+            sub: `${stats?.availableVehicles ?? 0} available`,
+            icon: <Car size={24} />,
+            color: 'bg-blue-500',
+            path: '/admin/vehicles',
+            privilege: 'INVENTORY_MANAGER',
+        },
+        {
+            label: 'Total Transactions',
+            value: stats?.totalTransactions ?? '—',
+            sub: `${stats?.pendingTransactions ?? 0} pending`,
+            icon: <ClipboardList size={24} />,
+            color: 'bg-purple-500',
+            path: '/admin/transactions',
+            privilege: 'TRANSACTION_MANAGER',
+        },
+        {
+            label: 'Total Buyers',
+            value: stats?.totalBuyers ?? '—',
+            sub: `${stats?.activeBuyers ?? 0} active`,
+            icon: <Users size={24} />,
+            color: 'bg-green-500',
+            path: '/admin/users',
+            privilege: 'ACCOUNT_MANAGER',
+        },
+        {
+            label: 'Total Revenue',
+            value: stats?.totalRevenue
+                ? `₱${Number(stats.totalRevenue).toLocaleString()}`
+                : '₱0',
+            sub: 'Completed orders',
+            icon: <TrendingUp size={24} />,
+            color: 'bg-red-500',
+            path: '/admin/sales',
+            privilege: 'SALES_ANALYST',
+        },
+        {
+            label: 'Total Reviews',
+            value: stats?.totalReviews ?? '—',
+            sub: `Avg: ${stats?.averageRating?.toFixed(1) ?? '—'} ⭐`,
+            icon: <Star size={24} />,
+            color: 'bg-yellow-500',
+            path: '/admin/reviews',
+            privilege: 'CONTENT_MODERATOR',
+        },
+        {
+            label: 'Warnings Issued',
+            value: stats?.totalWarnings ?? '—',
+            sub: `${stats?.suspendedUsers ?? 0} suspended`,
+            icon: <AlertCircle size={24} />,
+            color: 'bg-orange-500',
+            path: '/admin/users',
+            privilege: 'ACCOUNT_MANAGER',
+        },
+    ];
+
+    // Filter cards based on privilege
+    const visibleCards = allCards.filter(card => canAccess(card.privilege));
 
     return (
         <div className="space-y-6">
-            {/* Total Sales Banner */}
-            <div className="bg-gradient-to-r from-red-600 to-red-500 rounded-2xl p-6 text-white">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <p className="text-red-200 text-sm uppercase tracking-wider">Total Sales Revenue</p>
-                        <p className="text-4xl font-bold mt-1">₱{stats.totalSales.toLocaleString()}</p>
-                        <p className="text-red-200 text-xs mt-1">From delivered & completed orders</p>
-                    </div>
-                    <TrendingUp size={48} className="text-red-300" />
-                </div>
+            {/* Welcome Banner */}
+            <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-2xl p-6 text-white">
+                <h2 className="text-2xl font-bold mb-1">
+                    Welcome back, {user?.fullName?.split(' ')[0]}! 👋
+                </h2>
+                <p className="text-red-100 text-sm">
+                    {isSuperAdmin
+                        ? 'You have full access to all Carpeso systems.'
+                        : `Your role: ${privilege?.replace(/_/g, ' ')}`}
+                </p>
             </div>
 
-            {/* Stat Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {statCards.map(card => (
-                    <button key={card.label}
-                        onClick={() => navigate(card.path)}
-                        className="bg-white rounded-2xl shadow-sm p-6 flex items-center gap-4 hover:shadow-md transition text-left w-full"
-                    >
-                        <div className={`${card.color} text-white p-3 rounded-xl`}>{card.icon}</div>
-                        <div>
-                            <p className="text-2xl font-bold text-gray-800">{card.value}</p>
-                            <p className="text-xs text-gray-400 uppercase tracking-wider">{card.label}</p>
+            {/* Stats Cards */}
+            {loading ? (
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[1,2,3].map(i => (
+                        <div key={i} className="bg-white rounded-2xl p-6 animate-pulse">
+                            <div className="h-4 bg-gray-200 rounded w-1/2 mb-3" />
+                            <div className="h-8 bg-gray-200 rounded w-1/3" />
                         </div>
-                    </button>
-                ))}
-            </div>
-
-            {/* Recent Transactions */}
-            <div className="bg-white rounded-2xl shadow-sm p-6">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wider">
-                        Recent Transactions
-                    </h2>
-                    <button onClick={() => navigate('/admin/transactions')}
-                        className="text-red-600 text-xs font-semibold flex items-center gap-1 hover:underline">
-                        View All <ArrowRight size={12} />
-                    </button>
+                    ))}
                 </div>
-                {recentTransactions.length === 0 ? (
-                    <p className="text-gray-400 text-sm text-center py-8">No transactions yet</p>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b border-gray-100">
-                                    {['#', 'Buyer', 'Vehicle', 'Amount', 'Status', 'Date'].map(h => (
-                                        <th key={h} className="text-left py-2 px-3 text-xs font-bold text-gray-400 uppercase tracking-wider">{h}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {recentTransactions.map(t => (
-                                    <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
-                                        <td className="py-3 px-3 text-gray-400 font-mono text-xs">#{t.id}</td>
-                                        <td className="py-3 px-3 font-semibold text-gray-700">{t.buyerFullName}</td>
-                                        <td className="py-3 px-3 text-gray-600">{t.vehicleBrand} {t.vehicleModel}</td>
-                                        <td className="py-3 px-3 font-bold text-gray-800">₱{Number(t.amount).toLocaleString()}</td>
-                                        <td className="py-3 px-3">
-                                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusColor(t.status)}`}>
-                                                {t.status?.replace(/_/g, ' ')}
-                                            </span>
-                                        </td>
-                                        <td className="py-3 px-3 text-gray-400 text-xs">
-                                            {new Date(t.createdAt).toLocaleDateString('en-PH')}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+            ) : (
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                    {visibleCards.map(card => (
+                        <div key={card.label}
+                            onClick={() => navigate(card.path)}
+                            className="bg-white rounded-2xl shadow-sm p-5 hover:shadow-md transition cursor-pointer group">
+                            <div className="flex items-center justify-between mb-3">
+                                <div className={`w-12 h-12 ${card.color} rounded-xl flex items-center justify-center text-white group-hover:scale-110 transition`}>
+                                    {card.icon}
+                                </div>
+                            </div>
+                            <p className="text-2xl font-bold text-gray-800">{card.value}</p>
+                            <p className="text-sm font-semibold text-gray-500 mt-0.5">{card.label}</p>
+                            <p className="text-xs text-gray-400 mt-1">{card.sub}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Total Sales Banner — SuperAdmin or SALES_ANALYST only */}
+            {canAccess('SALES_ANALYST') && stats?.totalRevenue && (
+                <div className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-2xl p-6 text-white">
+                    <p className="text-sm text-gray-400 uppercase tracking-wider mb-1">Total Sales Revenue</p>
+                    <p className="text-4xl font-bold">
+                        ₱{Number(stats.totalRevenue).toLocaleString()}
+                    </p>
+                    <p className="text-gray-400 text-sm mt-1">
+                        From {stats?.completedTransactions ?? 0} completed transactions
+                    </p>
+                </div>
+            )}
+
+            {/* Recent Transactions — TRANSACTION_MANAGER or SuperAdmin */}
+            {canAccess('TRANSACTION_MANAGER') && (
+                <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                        <h3 className="font-bold text-gray-800">Recent Transactions</h3>
+                        <button onClick={() => navigate('/admin/transactions')}
+                            className="text-red-600 text-sm font-semibold hover:underline">
+                            View All →
+                        </button>
                     </div>
-                )}
-            </div>
+                    {recentTransactions.length === 0 ? (
+                        <div className="text-center py-10 text-gray-400 text-sm">No transactions yet</div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        {['#', 'Buyer', 'Vehicle', 'Amount', 'Status', 'Date'].map(h => (
+                                            <th key={h} className="text-left py-3 px-4 text-xs font-bold text-gray-400 uppercase">{h}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {recentTransactions.map(t => (
+                                        <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
+                                            <td className="py-3 px-4 text-gray-400 font-mono text-xs">#{t.id}</td>
+                                            <td className="py-3 px-4 font-semibold text-gray-800 text-xs">{t.buyerFullName}</td>
+                                            <td className="py-3 px-4 text-gray-600 text-xs">{t.vehicleBrand} {t.vehicleModel}</td>
+                                            <td className="py-3 px-4 font-bold text-gray-800 text-xs">₱{Number(t.amount).toLocaleString()}</td>
+                                            <td className="py-3 px-4">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusColor(t.status)}`}>
+                                                    {t.status?.replace(/_/g, ' ')}
+                                                </span>
+                                            </td>
+                                            <td className="py-3 px-4 text-gray-400 text-xs">
+                                                {new Date(t.createdAt).toLocaleDateString('en-PH')}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Privilege info for non-superadmin */}
+            {!isSuperAdmin && (
+                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+                    <p className="text-sm text-blue-700 font-semibold mb-1">
+                        🔒 Your Access Level: {privilege?.replace(/_/g, ' ')}
+                    </p>
+                    <p className="text-xs text-blue-500">
+                        You can only access pages and data assigned to your role.
+                        Contact the SuperAdmin to request additional access.
+                    </p>
+                </div>
+            )}
         </div>
     );
 }

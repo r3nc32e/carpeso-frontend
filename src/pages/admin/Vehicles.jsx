@@ -1,13 +1,5 @@
 import { useState, useEffect } from "react";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  X,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+import { Plus, Pencil, Trash2, X, Check } from "lucide-react";
 import api from "../../api/axios";
 import usePageTitle from "../../hooks/usePageTitle";
 
@@ -18,7 +10,6 @@ const IMG_BASE = "http://localhost:8080/api/files";
 
 function Vehicles() {
   usePageTitle("Vehicles");
-
   const [vehicles, setVehicles] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,8 +44,6 @@ function Vehicles() {
   };
   const [form, setForm] = useState(emptyForm);
 
-  const [uploadingVideos, setUploadingVideos] = useState(false);
-
   useEffect(() => {
     fetchData();
   }, []);
@@ -65,8 +54,8 @@ function Vehicles() {
         api.get("/admin/vehicles"),
         api.get("/admin/categories"),
       ]);
-      setVehicles(vRes.data.data);
-      setCategories(cRes.data.data);
+      setVehicles(vRes.data.data || []);
+      setCategories(cRes.data.data || []);
     } catch (err) {
       setError("Failed to fetch data!");
     } finally {
@@ -80,8 +69,8 @@ function Vehicles() {
   const openAdd = () => {
     setForm(emptyForm);
     setEditVehicle(null);
-    setShowModal(true);
     setError("");
+    setShowModal(true);
   };
 
   const openEdit = (v) => {
@@ -104,20 +93,22 @@ function Vehicles() {
       warrantyDetails: v.warrantyDetails || "",
       condition: v.condition || "",
       imageUrls: v.imageUrls || [],
-      videoUrl: v.videoUrl || "",
+      videoUrls: v.videoUrls || [],
+      quantity: v.quantity || 1,
     });
     setEditVehicle(v);
-    setShowModal(true);
     setError("");
+    setShowModal(true);
   };
 
   const handleAddImages = async (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
-    const total = form.imageUrls.length + files.length;
+    const currentUrls = form.imageUrls || [];
+    const total = currentUrls.length + files.length;
     if (total > 8) {
       setError(
-        `Max 8 images! You have ${form.imageUrls.length}, adding ${files.length} exceeds limit.`,
+        `Max 8 images! You have ${currentUrls.length}, adding ${files.length} exceeds limit.`,
       );
       return;
     }
@@ -130,7 +121,7 @@ function Vehicles() {
       });
       setForm((prev) => ({
         ...prev,
-        imageUrls: [...prev.imageUrls, ...res.data.data],
+        imageUrls: [...(prev.imageUrls || []), ...res.data.data],
       }));
     } catch (err) {
       setError("Failed to upload images!");
@@ -142,13 +133,18 @@ function Vehicles() {
   const removeImage = (index) => {
     setForm((prev) => ({
       ...prev,
-      imageUrls: prev.imageUrls.filter((_, i) => i !== index),
+      imageUrls: (prev.imageUrls || []).filter((_, i) => i !== index),
     }));
   };
 
-  const handleVideoUpload = async (e) => {
+  const handleAddVideo = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    const currentVideos = form.videoUrls || [];
+    if (currentVideos.length >= 3) {
+      setError("Maximum 3 videos allowed!");
+      return;
+    }
     setUploadingVideo(true);
     try {
       const formData = new FormData();
@@ -156,12 +152,22 @@ function Vehicles() {
       const res = await api.post("/files/upload/video", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      setForm((prev) => ({ ...prev, videoUrl: res.data.data }));
+      setForm((prev) => ({
+        ...prev,
+        videoUrls: [...(prev.videoUrls || []), res.data.data],
+      }));
     } catch (err) {
       setError("Failed to upload video!");
     } finally {
       setUploadingVideo(false);
     }
+  };
+
+  const removeVideo = (index) => {
+    setForm((prev) => ({
+      ...prev,
+      videoUrls: (prev.videoUrls || []).filter((_, i) => i !== index),
+    }));
   };
 
   const handleSubmit = async () => {
@@ -173,20 +179,21 @@ function Vehicles() {
       setError("Please select a category!");
       return;
     }
-    if (form.imageUrls.length === 0) {
-      setError("Please upload at least 1 photo!");
-      return;
-    }
     if (!form.condition) {
       setError("Please select vehicle condition!");
       return;
     }
+    if (!form.imageUrls || form.imageUrls.length === 0) {
+      setError("Please upload at least 1 photo!");
+      return;
+    }
     try {
+      const payload = { ...form, quantity: parseInt(form.quantity) || 1 };
       if (editVehicle) {
-        await api.put(`/admin/vehicles/${editVehicle.id}`, form);
+        await api.put(`/admin/vehicles/${editVehicle.id}`, payload);
         setSuccess("Vehicle updated!");
       } else {
-        await api.post("/admin/vehicles", form);
+        await api.post("/admin/vehicles", payload);
         setSuccess("Vehicle added!");
       }
       setShowModal(false);
@@ -195,38 +202,6 @@ function Vehicles() {
     } catch (err) {
       setError(err.response?.data?.message || "Failed to save vehicle!");
     }
-  };
-
-  const handleAddVideo = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (form.videoUrls.length >= 3) {
-      setError("Maximum 3 videos allowed!");
-      return;
-    }
-    setUploadingVideos(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await api.post("/files/upload/video", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      setForm((prev) => ({
-        ...prev,
-        videoUrls: [...prev.videoUrls, res.data.data],
-      }));
-    } catch (err) {
-      setError("Failed to upload video!");
-    } finally {
-      setUploadingVideos(false);
-    }
-  };
-
-  const removeVideo = (index) => {
-    setForm((prev) => ({
-      ...prev,
-      videoUrls: prev.videoUrls.filter((_, i) => i !== index),
-    }));
   };
 
   const handleDelete = async (id) => {
@@ -285,6 +260,7 @@ function Vehicles() {
         </div>
       )}
 
+      {/* Table */}
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -296,6 +272,7 @@ function Vehicles() {
                   "Brand & Model",
                   "Category",
                   "Price",
+                  "Qty",
                   "Status",
                   "Actions",
                 ].map((h) => (
@@ -312,7 +289,7 @@ function Vehicles() {
               {loading ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="text-center py-12 text-gray-400 text-sm"
                   >
                     Loading...
@@ -321,7 +298,7 @@ function Vehicles() {
               ) : vehicles.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="text-center py-12 text-gray-400 text-sm"
                   >
                     No vehicles yet!
@@ -357,11 +334,18 @@ function Vehicles() {
                         {v.year} • {v.color}
                       </p>
                     </td>
-                    <td className="py-3 px-4 text-gray-600">
-                      {v.categoryName}
+                    <td className="py-3 px-4 text-gray-600 text-sm">
+                      {v.categoryName || "—"}
                     </td>
                     <td className="py-3 px-4 font-bold text-gray-800">
                       ₱{Number(v.price).toLocaleString()}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-bold ${(v.quantity || 0) > 0 ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-600"}`}
+                      >
+                        {v.quantity || 0} units
+                      </span>
                     </td>
                     <td className="py-3 px-4">
                       <span
@@ -419,7 +403,7 @@ function Vehicles() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className={labelClass}>Category</label>
+                  <label className={labelClass}>Category *</label>
                   <select
                     name="categoryId"
                     value={form.categoryId}
@@ -435,7 +419,7 @@ function Vehicles() {
                   </select>
                 </div>
                 <div>
-                  <label className={labelClass}>Condition</label>
+                  <label className={labelClass}>Condition *</label>
                   <select
                     name="condition"
                     value={form.condition}
@@ -478,7 +462,7 @@ function Vehicles() {
                     value={form.year}
                     onChange={handle}
                     className={inputClass}
-                    placeholder="2023"
+                    placeholder="2024"
                   />
                 </div>
                 <div>
@@ -552,7 +536,7 @@ function Vehicles() {
                     value={form.mileage}
                     onChange={handle}
                     className={inputClass}
-                    placeholder="15000"
+                    placeholder="0"
                   />
                 </div>
                 <div>
@@ -573,7 +557,7 @@ function Vehicles() {
                     value={form.engineNumber}
                     onChange={handle}
                     className={inputClass}
-                    placeholder="ENG-2023-001"
+                    placeholder="ENG-001"
                   />
                 </div>
                 <div>
@@ -583,7 +567,7 @@ function Vehicles() {
                     value={form.chassisNumber}
                     onChange={handle}
                     className={inputClass}
-                    placeholder="CHS-2023-001"
+                    placeholder="CHS-001"
                   />
                 </div>
                 <div>
@@ -596,25 +580,44 @@ function Vehicles() {
                     placeholder="ABC 1234"
                   />
                 </div>
+                <div>
+                  <label className={labelClass}>Quantity (Units) *</label>
+                  <input
+                    name="quantity"
+                    type="number"
+                    min="1"
+                    value={form.quantity}
+                    onChange={handle}
+                    className={inputClass}
+                    placeholder="1"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    How many units available
+                  </p>
+                </div>
               </div>
-              {/* Quantity */}
-              <div>
-                <label className={labelClass}>
-                  Quantity *{" "}
-                  <span className="text-red-500 font-normal text-xs">
-                    (units available)
-                  </span>
-                </label>
-                <input
-                  name="quantity"
-                  type="number"
-                  min="1"
-                  value={form.quantity}
-                  onChange={handle}
-                  className={inputClass}
-                  placeholder="1"
-                />
-              </div>
+
+              {/* Status Display — auto based on quantity */}
+              {editVehicle && (
+                <div className="col-span-2">
+                  <label className={labelClass}>Current Status</label>
+                  <div
+                    className={`px-4 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-2 ${
+                      form.quantity > 0
+                        ? "bg-green-100 text-green-700"
+                        : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    <div
+                      className={`w-2 h-2 rounded-full ${form.quantity > 0 ? "bg-green-500" : "bg-gray-400"}`}
+                    />
+                    {form.quantity > 0 ? "Available" : "Sold — Out of Stock"}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Status updates automatically based on quantity
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className={labelClass}>Description</label>
@@ -644,14 +647,14 @@ function Vehicles() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className={labelClass}>
-                    Vehicle Images ({form.imageUrls.length}/8)
+                    Vehicle Images ({(form.imageUrls || []).length}/8) *
                     {uploadingImages && (
                       <span className="text-blue-500 ml-2 font-normal">
                         Uploading...
                       </span>
                     )}
                   </label>
-                  {form.imageUrls.length < 8 && (
+                  {(form.imageUrls || []).length < 8 && (
                     <label className="flex items-center gap-1 px-3 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-bold cursor-pointer hover:bg-red-100 transition">
                       <Plus size={12} /> Add Photos
                       <input
@@ -665,16 +668,16 @@ function Vehicles() {
                   )}
                 </div>
                 <p className="text-xs text-gray-400 mb-2">
-                  Max 8 images • JPG, PNG • Max 10MB each
+                  Max 8 images • JPG, PNG • Max 10MB each • First image = cover
+                  photo
                 </p>
-
-                {form.imageUrls.length > 0 ? (
+                {(form.imageUrls || []).length > 0 ? (
                   <div className="grid grid-cols-4 gap-2">
-                    {form.imageUrls.map((url, i) => (
+                    {(form.imageUrls || []).map((url, i) => (
                       <div key={i} className="relative group">
                         <img
                           src={getImageUrl(url)}
-                          alt={`img-${i}`}
+                          alt=""
                           className="w-full h-20 object-cover rounded-lg border border-gray-200"
                         />
                         {i === 0 && (
@@ -710,18 +713,18 @@ function Vehicles() {
                 )}
               </div>
 
-                            {/* Videos — Multiple (max 3) */}
-              <div className="col-span-2">
+              {/* Videos */}
+              <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className={labelClass}>
-                    Vehicle Videos ({form.videoUrls.length}/3)
-                    {uploadingVideos && (
+                    Vehicle Videos ({(form.videoUrls || []).length}/3)
+                    {uploadingVideo && (
                       <span className="text-blue-500 ml-2 font-normal">
                         Uploading...
                       </span>
                     )}
                   </label>
-                  {form.videoUrls.length < 3 && (
+                  {(form.videoUrls || []).length < 3 && (
                     <label className="flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold cursor-pointer hover:bg-gray-200 transition">
                       <Plus size={12} /> Add Video
                       <input
@@ -736,9 +739,9 @@ function Vehicles() {
                 <p className="text-xs text-gray-400 mb-2">
                   MP4 • Max 50MB each • Max 3 minutes • Up to 3 videos
                 </p>
-                {form.videoUrls.length > 0 ? (
+                {(form.videoUrls || []).length > 0 ? (
                   <div className="space-y-2">
-                    {form.videoUrls.map((url, i) => (
+                    {(form.videoUrls || []).map((url, i) => (
                       <div
                         key={i}
                         className="flex items-center gap-2 bg-gray-50 rounded-lg p-2"

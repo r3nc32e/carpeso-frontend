@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Star, ArrowLeft, Car, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Star, ArrowLeft, Car, X, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import usePageTitle from '../../hooks/usePageTitle';
@@ -26,6 +26,10 @@ function VehicleDetail() {
     const [currentImg, setCurrentImg] = useState(0);
     const [cities, setCities] = useState([]);
     const [barangays, setBarangays] = useState([]);
+    const [savedAddresses, setSavedAddresses] = useState([]);
+    const [selectedAddressId, setSelectedAddressId] = useState('');
+    const [showNewAddressForm, setShowNewAddressForm] = useState(false);
+    const [savingAddress, setSavingAddress] = useState(false);
 
     usePageTitle(vehicle ? `${vehicle.brand} ${vehicle.model}` : 'Vehicle Details');
 
@@ -35,6 +39,7 @@ function VehicleDetail() {
         cityName: '',
         barangayName: '',
         streetNo: '',
+        addressLabel: '',
     });
 
     const PAYMENT_MODES = ['CASH', 'GCASH', 'MAYA', 'BANK_TRANSFER', 'CAR_FINANCING', 'CREDIT_CARD'];
@@ -43,15 +48,31 @@ function VehicleDetail() {
         fetchVehicle();
         fetchReviews();
         api.get('/locations/cities').then(res => setCities(res.data.data));
+        if (isAuthenticated() && user?.role === 'BUYER') {
+            fetchAddresses();
+        }
     }, [id]);
+
+    const fetchAddresses = async () => {
+        try {
+            const res = await api.get('/buyer/addresses');
+            const addrs = res.data.data || [];
+            setSavedAddresses(addrs);
+            if (addrs.length > 0) {
+                setSelectedAddressId(String(addrs[0].id));
+                setShowNewAddressForm(false);
+            } else {
+                setShowNewAddressForm(true);
+            }
+        } catch (err) {
+            console.error(err);
+            setShowNewAddressForm(true);
+        }
+    };
 
     const handleCityChange = async (cityId) => {
         const city = cities.find(c => c.id === parseInt(cityId));
-        setReserveForm(prev => ({
-            ...prev,
-            cityName: city?.name || '',
-            barangayName: '',
-        }));
+        setReserveForm(prev => ({ ...prev, cityName: city?.name || '', barangayName: '' }));
         if (cityId) {
             const res = await api.get(`/locations/barangays/${cityId}`);
             setBarangays(res.data.data);
@@ -86,21 +107,69 @@ function VehicleDetail() {
     const allMedia = [
         ...(vehicle?.imageUrls || []).map(url => ({ type: 'image', url })),
         ...(vehicle?.videoUrls || []).map(url => ({ type: 'video', url })),
-        ...(vehicle?.videoUrl && !vehicle?.videoUrls?.length
-            ? [{ type: 'video', url: vehicle.videoUrl }]
-            : []),
+        ...(vehicle?.videoUrl && !(vehicle?.videoUrls?.length) ? [{ type: 'video', url: vehicle.videoUrl }] : []),
     ];
 
-    const handleReserve = async () => {
-        if (!reserveForm.paymentMode || !reserveForm.cityName || !reserveForm.barangayName) {
-            setError('Please fill all required fields!');
+    const getDeliveryAddress = () => {
+        if (!showNewAddressForm && selectedAddressId) {
+            const addr = savedAddresses.find(a => String(a.id) === selectedAddressId);
+            if (addr) {
+                return `${addr.streetNo ? addr.streetNo + ', ' : ''}${addr.barangayName}, ${addr.cityName}`;
+            }
+        }
+        if (reserveForm.cityName && reserveForm.barangayName) {
+            return `${reserveForm.streetNo ? reserveForm.streetNo + ', ' : ''}${reserveForm.barangayName}, ${reserveForm.cityName}`;
+        }
+        return '';
+    };
+
+    const handleSaveNewAddress = async () => {
+        if (!reserveForm.cityName || !reserveForm.barangayName) {
+            setError('Please select city and barangay!');
             return;
         }
-        const fullAddress = `${reserveForm.streetNo ? reserveForm.streetNo + ', ' : ''}${reserveForm.barangayName}, ${reserveForm.cityName}`;
+        setSavingAddress(true);
+        try {
+            const label = reserveForm.addressLabel || `Address ${savedAddresses.length + 1}`;
+            await api.post('/buyer/addresses', {
+                label,
+                cityName: reserveForm.cityName,
+                barangayName: reserveForm.barangayName,
+                streetNo: reserveForm.streetNo,
+            });
+            await fetchAddresses();
+            setReserveForm(prev => ({ ...prev, addressLabel: '' }));
+            setError('');
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to save address!');
+        } finally {
+            setSavingAddress(false);
+        }
+    };
+
+    const handleDeleteAddress = async (addrId) => {
+        try {
+            await api.delete(`/buyer/addresses/${addrId}`);
+            await fetchAddresses();
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleReserve = async () => {
+        if (!reserveForm.paymentMode) {
+            setError('Please select a payment mode!');
+            return;
+        }
+        const deliveryAddress = getDeliveryAddress();
+        if (!deliveryAddress) {
+            setError('Please select or enter a delivery address!');
+            return;
+        }
         try {
             await api.post('/buyer/reserve', {
                 vehicleId: parseInt(id),
-                deliveryAddress: fullAddress,
+                deliveryAddress,
                 deliveryNotes: reserveForm.deliveryNotes,
                 paymentMode: reserveForm.paymentMode,
             });
@@ -174,48 +243,36 @@ function VehicleDetail() {
             </button>
 
             {success && (
-                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm">
-                    ✅ {success}
-                </div>
+                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm">✅ {success}</div>
             )}
 
             {/* Vehicle Card */}
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-
-                {/* Media Carousel */}
                 {allMedia.length > 0 ? (
                     <div className="relative bg-black">
                         <div className="relative h-64 sm:h-80 flex items-center justify-center">
                             {allMedia[currentImg]?.type === 'image' ? (
-                                <img src={getImageUrl(allMedia[currentImg].url)}
-                                    alt="vehicle" className="h-full w-full object-contain" />
+                                <img src={getImageUrl(allMedia[currentImg].url)} alt="vehicle" className="h-full w-full object-contain" />
                             ) : (
-                                <video
-                                    src={`${IMG_BASE}${allMedia[currentImg]?.url?.replace('/uploads', '')}`}
-                                    controls className="h-full w-full object-contain" />
+                                <video src={`${IMG_BASE}${allMedia[currentImg]?.url?.replace('/uploads', '')}`} controls className="h-full w-full object-contain" />
                             )}
-
                             {allMedia.length > 1 && (
                                 <>
-                                    <button
-                                        onClick={() => setCurrentImg(i => i === 0 ? allMedia.length - 1 : i - 1)}
+                                    <button onClick={() => setCurrentImg(i => i === 0 ? allMedia.length - 1 : i - 1)}
                                         className="absolute left-3 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-80 transition">
                                         <ChevronLeft size={20} />
                                     </button>
-                                    <button
-                                        onClick={() => setCurrentImg(i => i === allMedia.length - 1 ? 0 : i + 1)}
+                                    <button onClick={() => setCurrentImg(i => i === allMedia.length - 1 ? 0 : i + 1)}
                                         className="absolute right-3 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-80 transition">
                                         <ChevronRight size={20} />
                                     </button>
                                 </>
                             )}
-
                             <div className="absolute bottom-3 right-3 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full">
                                 {currentImg + 1} / {allMedia.length}
                                 {allMedia[currentImg]?.type === 'video' && ' 🎥'}
                             </div>
                         </div>
-
                         {allMedia.length > 1 && (
                             <div className="flex gap-2 p-3 overflow-x-auto bg-gray-900">
                                 {allMedia.map((media, i) => (
@@ -271,6 +328,7 @@ function VehicleDetail() {
                             { label: 'Plate No.', value: vehicle.plateNumber || '—' },
                             { label: 'Engine No.', value: vehicle.engineNumber || '—' },
                             { label: 'Chassis No.', value: vehicle.chassisNumber || '—' },
+                            { label: 'Units Available', value: vehicle.quantity > 0 ? `${vehicle.quantity} unit(s)` : 'Out of Stock' },
                         ].map(({ label, value }) => (
                             <div key={label} className="bg-gray-50 rounded-xl p-3">
                                 <p className="text-xs text-gray-400 font-semibold uppercase">{label}</p>
@@ -294,12 +352,11 @@ function VehicleDetail() {
                     )}
 
                     {vehicle.status === 'AVAILABLE' && isAuthenticated() && user?.role === 'BUYER' && (
-                        <button
-                            onClick={() => {
-                                setReserveForm({ deliveryNotes: '', paymentMode: '', cityName: '', barangayName: '', streetNo: '' });
-                                setError('');
-                                setShowReserveModal(true);
-                            }}
+                        <button onClick={() => {
+                            setReserveForm({ deliveryNotes: '', paymentMode: '', cityName: '', barangayName: '', streetNo: '', addressLabel: '' });
+                            setError('');
+                            setShowReserveModal(true);
+                        }}
                             className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-lg transition">
                             Reserve This Vehicle
                         </button>
@@ -387,10 +444,7 @@ function VehicleDetail() {
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white">
                             <h3 className="text-lg font-bold text-gray-800">Reserve Vehicle</h3>
-                            <button onClick={() => setShowReserveModal(false)}
-                                className="p-2 hover:bg-gray-100 rounded-lg transition">
-                                <X size={18} />
-                            </button>
+                            <button onClick={() => setShowReserveModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition"><X size={18} /></button>
                         </div>
 
                         <div className="p-6 space-y-4">
@@ -399,10 +453,9 @@ function VehicleDetail() {
                                 <p className="text-sm text-gray-500">{vehicle.year} • ₱{Number(vehicle.price).toLocaleString()}</p>
                             </div>
 
-                            {error && (
-                                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">⚠️ {error}</div>
-                            )}
+                            {error && <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">⚠️ {error}</div>}
 
+                            {/* Payment Mode */}
                             <div>
                                 <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase">Payment Mode *</label>
                                 <select value={reserveForm.paymentMode}
@@ -413,34 +466,82 @@ function VehicleDetail() {
                                 </select>
                             </div>
 
+                            {/* Delivery Address */}
                             <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase">City / Municipality *</label>
-                                <select onChange={e => handleCityChange(e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition">
-                                    <option value="">Select City</option>
-                                    {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
+                                <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase">Delivery Address *</label>
+
+                                {/* Saved Addresses */}
+                                {savedAddresses.length > 0 && (
+                                    <div className="space-y-2 mb-3">
+                                        {savedAddresses.map(addr => (
+                                            <div key={addr.id}
+                                                onClick={() => { setSelectedAddressId(String(addr.id)); setShowNewAddressForm(false); }}
+                                                className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition ${selectedAddressId === String(addr.id) && !showNewAddressForm ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                                <div className={`w-4 h-4 mt-0.5 rounded-full border-2 flex-shrink-0 ${selectedAddressId === String(addr.id) && !showNewAddressForm ? 'border-red-500 bg-red-500' : 'border-gray-300'}`} />
+                                                <div className="flex-1">
+                                                    <div className="flex items-center justify-between">
+                                                        <p className="text-sm font-semibold text-gray-800">
+                                                            {addr.label}
+                                                            {addr.default && <span className="ml-2 text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">Default</span>}
+                                                        </p>
+                                                        <button onClick={e => { e.stopPropagation(); handleDeleteAddress(addr.id); }}
+                                                            className="p-1 text-gray-400 hover:text-red-500 transition">
+                                                            <Trash2 size={12} />
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-xs text-gray-500">
+                                                        {addr.streetNo ? addr.streetNo + ', ' : ''}{addr.barangayName}, {addr.cityName}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {/* Add New Address Option */}
+                                        <div onClick={() => { setShowNewAddressForm(true); setSelectedAddressId(''); }}
+                                            className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ${showNewAddressForm ? 'border-red-500 bg-red-50' : 'border-dashed border-gray-300 hover:border-gray-400'}`}>
+                                            <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${showNewAddressForm ? 'border-red-500 bg-red-500' : 'border-gray-300'}`} />
+                                            <p className="text-sm font-semibold text-gray-600">+ Add new address</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* New Address Form */}
+                                {(savedAddresses.length === 0 || showNewAddressForm) && (
+                                    <div className="space-y-3 bg-gray-50 rounded-xl p-3 border border-gray-200">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-500 mb-1">Address Label</label>
+                                            <input value={reserveForm.addressLabel}
+                                                onChange={e => setReserveForm(prev => ({ ...prev, addressLabel: e.target.value }))}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition"
+                                                placeholder={`Home, Office, Address ${savedAddresses.length + 1}...`} />
+                                        </div>
+                                        <select onChange={e => handleCityChange(e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition">
+                                            <option value="">Select City *</option>
+                                            {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        </select>
+                                        <select value={reserveForm.barangayName}
+                                            onChange={e => setReserveForm(prev => ({ ...prev, barangayName: e.target.value }))}
+                                            disabled={!reserveForm.cityName}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition disabled:bg-gray-100 disabled:text-gray-400">
+                                            <option value="">Select Barangay *</option>
+                                            {barangays.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                                        </select>
+                                        <input value={reserveForm.streetNo}
+                                            onChange={e => setReserveForm(prev => ({ ...prev, streetNo: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition"
+                                            placeholder="Street / House No. (optional)" />
+                                        {savedAddresses.length > 0 && (
+                                            <button onClick={handleSaveNewAddress} disabled={savingAddress}
+                                                className="w-full py-2 bg-gray-800 hover:bg-gray-900 text-white rounded-lg text-xs font-bold transition disabled:opacity-60">
+                                                {savingAddress ? 'Saving...' : '💾 Save this address for future use'}
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase">Barangay *</label>
-                                <select value={reserveForm.barangayName}
-                                    onChange={e => setReserveForm(prev => ({ ...prev, barangayName: e.target.value }))}
-                                    disabled={!reserveForm.cityName}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition disabled:bg-gray-50 disabled:text-gray-400">
-                                    <option value="">Select Barangay</option>
-                                    {barangays.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase">Street / House No.</label>
-                                <input value={reserveForm.streetNo}
-                                    onChange={e => setReserveForm(prev => ({ ...prev, streetNo: e.target.value }))}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition"
-                                    placeholder="123 Main Street (optional)" />
-                            </div>
-
+                            {/* Delivery Notes */}
                             <div>
                                 <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase">Delivery Notes</label>
                                 <textarea value={reserveForm.deliveryNotes}

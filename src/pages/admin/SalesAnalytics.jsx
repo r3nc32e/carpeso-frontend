@@ -1,22 +1,32 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Download, Car, Users, ClipboardList } from 'lucide-react';
+import { TrendingUp, Download } from 'lucide-react';
 import api from '../../api/axios';
 import usePageTitle from '../../hooks/usePageTitle';
-
+import {
+    BarChart, Bar, XAxis, YAxis, CartesianGrid,
+    Tooltip, ResponsiveContainer, Cell
+} from 'recharts';
 
 function SalesAnalytics() {
     usePageTitle('Sales Analytics');
-    
+    const [stats, setStats] = useState(null);
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [period, setPeriod] = useState('month');
+    const [exporting, setExporting] = useState(false);
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => {
+        fetchData();
+    }, []);
 
     const fetchData = async () => {
         try {
-            const res = await api.get('/admin/transactions');
-            setTransactions(res.data.data || []);
+            const [statsRes, txRes] = await Promise.all([
+                api.get('/admin/sales/stats'),
+                api.get('/admin/transactions'),
+            ]);
+            setStats(statsRes.data.data);
+            setTransactions(txRes.data.data || []);
         } catch (err) {
             console.error(err);
         } finally {
@@ -24,80 +34,81 @@ function SalesAnalytics() {
         }
     };
 
-    const completed = transactions.filter(t =>
-        ['DELIVERED', 'COMPLETED'].includes(t.status)
-    );
-
-    const now = new Date();
-
-    const filterByPeriod = (data) => {
-        return data.filter(t => {
-            const date = new Date(t.createdAt);
-            if (period === 'day') {
-                return date.toDateString() === now.toDateString();
-            } else if (period === 'month') {
-                return date.getMonth() === now.getMonth() &&
-                    date.getFullYear() === now.getFullYear();
-            } else {
-                return date.getFullYear() === now.getFullYear();
-            }
-        });
-    };
-
-    const periodData = filterByPeriod(completed);
-    const totalRevenue = periodData.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-    const totalAll = completed.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-
-    // Top vehicles
-    const vehicleSales = {};
-    completed.forEach(t => {
-        const key = `${t.vehicleBrand} ${t.vehicleModel}`;
-        vehicleSales[key] = (vehicleSales[key] || 0) + Number(t.amount || 0);
-    });
-    const topVehicles = Object.entries(vehicleSales)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5);
-
-    // Monthly breakdown
-    const monthlyData = {};
-    completed.forEach(t => {
-        const date = new Date(t.createdAt);
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        const label = date.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
-        if (!monthlyData[key]) monthlyData[key] = { label, total: 0, count: 0 };
-        monthlyData[key].total += Number(t.amount || 0);
-        monthlyData[key].count += 1;
-    });
-    const monthlyArr = Object.values(monthlyData).slice(-6);
-    const maxMonthly = Math.max(...monthlyArr.map(m => m.total), 1);
-
-    // Payment mode breakdown
-    const paymentBreakdown = {};
-    completed.forEach(t => {
-        const mode = t.paymentMode?.replace(/_/g, ' ') || 'Unknown';
-        paymentBreakdown[mode] = (paymentBreakdown[mode] || 0) + 1;
-    });
-
     const handleExportPDF = async () => {
+        setExporting(true);
         try {
-            const res = await api.get('/admin/sales/report', {
-                responseType: 'blob',
-                params: { period }
-            });
-            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const token = localStorage.getItem('token');
+            const res = await fetch(
+                `http://localhost:8080/api/admin/sales/report?period=${period}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (!res.ok) throw new Error('Export failed!');
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `sales-report-${period}-${new Date().toLocaleDateString('en-PH').replace(/\//g, '-')}.pdf`;
+            a.download = `carpeso-sales-report-${period}-${new Date().getFullYear()}.pdf`;
+            document.body.appendChild(a);
             a.click();
+            a.remove();
             window.URL.revokeObjectURL(url);
         } catch (err) {
-            alert('PDF export coming soon!');
+            alert('Failed to export PDF: ' + err.message);
+        } finally {
+            setExporting(false);
         }
     };
 
+    // Monthly chart data
+    const getMonthlyData = () => {
+        const months = ['Jan','Feb','Mar','Apr','May','Jun',
+                        'Jul','Aug','Sep','Oct','Nov','Dec'];
+        const data = months.map((month, i) => {
+            const monthTx = transactions.filter(t => {
+                const d = new Date(t.createdAt);
+                return d.getMonth() === i &&
+                    d.getFullYear() === new Date().getFullYear() &&
+                    ['DELIVERED', 'COMPLETED'].includes(t.status);
+            });
+            const revenue = monthTx.reduce((sum, t) =>
+                sum + (Number(t.amount) || 0), 0);
+            return { month, revenue, count: monthTx.length };
+        });
+        return data;
+    };
+
+    // Top vehicles
+    const getTopVehicles = () => {
+        const map = {};
+        transactions
+            .filter(t => ['DELIVERED', 'COMPLETED'].includes(t.status))
+            .forEach(t => {
+                const key = `${t.vehicleBrand} ${t.vehicleModel}`;
+                if (!map[key]) map[key] = { name: key, count: 0, revenue: 0 };
+                map[key].count++;
+                map[key].revenue += Number(t.amount) || 0;
+            });
+        return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 5);
+    };
+
+    // Payment breakdown
+    const getPaymentBreakdown = () => {
+        const map = {};
+        transactions.forEach(t => {
+            const p = t.paymentMode?.replace(/_/g, ' ') || 'Unknown';
+            map[p] = (map[p] || 0) + 1;
+        });
+        return Object.entries(map).map(([mode, count]) => ({ mode, count }));
+    };
+
+    const COLORS = ['#DC2626', '#2563EB', '#7C3AED', '#059669', '#D97706', '#DB2777'];
+    const monthlyData = getMonthlyData();
+    const topVehicles = getTopVehicles();
+    const paymentBreakdown = getPaymentBreakdown();
+
     if (loading) return (
         <div className="flex items-center justify-center h-64">
-            <p className="text-gray-400 text-sm animate-pulse">Loading analytics...</p>
+            <p className="text-gray-400 animate-pulse">Loading analytics...</p>
         </div>
     );
 
@@ -107,178 +118,111 @@ function SalesAnalytics() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <h2 className="text-xl font-bold text-gray-800">Sales Analytics</h2>
-                    <p className="text-sm text-gray-400">Track revenue and performance</p>
+                    <p className="text-sm text-gray-400">Revenue and performance overview</p>
                 </div>
-                <div className="flex gap-2">
-                    {/* Period Filter */}
-                    {['day', 'month', 'year'].map(p => (
-                        <button key={p}
-                            onClick={() => setPeriod(p)}
-                            className={`px-3 py-1.5 rounded-full text-xs font-bold transition ${period === p ? 'bg-red-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-100'}`}>
-                            {p === 'day' ? 'Today' : p === 'month' ? 'This Month' : 'This Year'}
-                        </button>
-                    ))}
-                    <button
-                        onClick={handleExportPDF}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded-full text-xs font-bold transition"
-                    >
-                        <Download size={12} /> Export PDF
+                <div className="flex items-center gap-2">
+                    <select value={period} onChange={e => setPeriod(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500">
+                        <option value="day">Today</option>
+                        <option value="month">This Month</option>
+                        <option value="year">This Year</option>
+                    </select>
+                    <button onClick={handleExportPDF} disabled={exporting}
+                        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold text-sm transition disabled:opacity-60">
+                        <Download size={16} />
+                        {exporting ? 'Exporting...' : 'Export PDF'}
                     </button>
                 </div>
             </div>
 
-            {/* Revenue Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                    {
-                        label: period === 'day' ? "Today's Revenue" : period === 'month' ? "This Month's Revenue" : "This Year's Revenue",
-                        value: `₱${totalRevenue.toLocaleString()}`,
-                        sub: `${periodData.length} orders`,
-                        icon: <TrendingUp size={24} />,
-                        color: 'bg-red-600',
-                    },
-                    {
-                        label: 'Total All-Time Revenue',
-                        value: `₱${totalAll.toLocaleString()}`,
-                        sub: `${completed.length} completed orders`,
-                        icon: <ClipboardList size={24} />,
-                        color: 'bg-gray-800',
-                    },
-                    {
-                        label: 'Average Order Value',
-                        value: completed.length > 0
-                            ? `₱${Math.round(totalAll / completed.length).toLocaleString()}`
-                            : '₱0',
-                        sub: 'Per completed order',
-                        icon: <Car size={24} />,
-                        color: 'bg-red-500',
-                    },
+                    { label: 'Total Revenue', value: `₱${Number(stats?.totalRevenue || 0).toLocaleString()}`, color: 'text-red-600', bg: 'bg-red-50' },
+                    { label: 'Total Orders', value: stats?.totalTransactions || 0, color: 'text-blue-600', bg: 'bg-blue-50' },
+                    { label: 'Completed', value: stats?.completedTransactions || 0, color: 'text-green-600', bg: 'bg-green-50' },
+                    { label: 'Pending', value: stats?.pendingTransactions || 0, color: 'text-yellow-600', bg: 'bg-yellow-50' },
                 ].map(card => (
-                    <div key={card.label} className="bg-white rounded-2xl shadow-sm p-6 flex items-center gap-4">
-                        <div className={`${card.color} text-white p-3 rounded-xl flex-shrink-0`}>
-                            {card.icon}
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold text-gray-800">{card.value}</p>
-                            <p className="text-xs text-gray-400 uppercase tracking-wider">{card.label}</p>
-                            <p className="text-xs text-gray-300 mt-0.5">{card.sub}</p>
-                        </div>
+                    <div key={card.label} className={`${card.bg} rounded-2xl p-5`}>
+                        <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+                        <p className="text-sm text-gray-500 font-semibold mt-1">{card.label}</p>
                     </div>
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Monthly Bar Chart */}
-                <div className="bg-white rounded-2xl shadow-sm p-6">
-                    <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">
-                        Monthly Revenue (Last 6 Months)
-                    </h3>
-                    {monthlyArr.length === 0 ? (
-                        <p className="text-gray-400 text-sm text-center py-8">No data yet</p>
-                    ) : (
-                        <div className="space-y-3">
-                            {monthlyArr.map((m, i) => (
-                                <div key={i}>
-                                    <div className="flex justify-between text-xs text-gray-500 mb-1">
-                                        <span className="font-semibold">{m.label}</span>
-                                        <span className="font-bold text-gray-800">₱{m.total.toLocaleString()} ({m.count} orders)</span>
-                                    </div>
-                                    <div className="w-full bg-gray-100 rounded-full h-3">
-                                        <div
-                                            className="bg-red-500 h-3 rounded-full transition-all duration-700"
-                                            style={{ width: `${(m.total / maxMonthly) * 100}%` }}
-                                        />
-                                    </div>
-                                </div>
+            {/* Monthly Revenue Chart */}
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+                <h3 className="font-bold text-gray-800 mb-4">Monthly Revenue ({new Date().getFullYear()})</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={monthlyData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                        <YAxis tick={{ fontSize: 12 }}
+                            tickFormatter={v => v >= 1000 ? `₱${(v/1000).toFixed(0)}k` : `₱${v}`} />
+                        <Tooltip
+                            formatter={(value) => [`₱${Number(value).toLocaleString()}`, 'Revenue']}
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+                        <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
+                            {monthlyData.map((_, i) => (
+                                <Cell key={i} fill={i === new Date().getMonth() ? '#DC2626' : '#FECACA'} />
                             ))}
-                        </div>
-                    )}
-                </div>
+                        </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
 
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Top Vehicles */}
                 <div className="bg-white rounded-2xl shadow-sm p-6">
-                    <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">
-                        Top Selling Vehicles
-                    </h3>
+                    <h3 className="font-bold text-gray-800 mb-4">Top Selling Vehicles</h3>
                     {topVehicles.length === 0 ? (
-                        <p className="text-gray-400 text-sm text-center py-8">No sales yet</p>
+                        <p className="text-gray-400 text-sm text-center py-8">No completed sales yet</p>
                     ) : (
                         <div className="space-y-3">
-                            {topVehicles.map(([name, revenue], i) => (
-                                <div key={name} className="flex items-center gap-3">
-                                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${i === 0 ? 'bg-yellow-400' : i === 1 ? 'bg-gray-400' : i === 2 ? 'bg-orange-400' : 'bg-gray-300'}`}>
+                            {topVehicles.map((v, i) => (
+                                <div key={v.name} className="flex items-center gap-3">
+                                    <div className="w-7 h-7 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
                                         {i + 1}
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-gray-800 truncate">{name}</p>
-                                        <p className="text-xs text-gray-400">₱{revenue.toLocaleString()}</p>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-semibold text-gray-800">{v.name}</p>
+                                        <p className="text-xs text-gray-400">{v.count} sold</p>
                                     </div>
-                                    <div className="flex-1 max-w-[120px]">
-                                        <div className="w-full bg-gray-100 rounded-full h-2">
-                                            <div
-                                                className="bg-red-500 h-2 rounded-full"
-                                                style={{ width: `${(revenue / topVehicles[0][1]) * 100}%` }}
-                                            />
-                                        </div>
-                                    </div>
+                                    <p className="text-sm font-bold text-red-600">
+                                        ₱{Number(v.revenue).toLocaleString()}
+                                    </p>
                                 </div>
                             ))}
                         </div>
                     )}
                 </div>
-            </div>
 
-            {/* Payment Mode Breakdown */}
-            <div className="bg-white rounded-2xl shadow-sm p-6">
-                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">
-                    Payment Mode Breakdown
-                </h3>
-                {Object.keys(paymentBreakdown).length === 0 ? (
-                    <p className="text-gray-400 text-sm text-center py-6">No data yet</p>
-                ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                        {Object.entries(paymentBreakdown).map(([mode, count]) => (
-                            <div key={mode} className="bg-gray-50 rounded-xl p-3 text-center">
-                                <p className="text-2xl font-bold text-red-600">{count}</p>
-                                <p className="text-xs text-gray-500 mt-1 uppercase font-semibold">{mode}</p>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            {/* Recent Completed Orders */}
-            <div className="bg-white rounded-2xl shadow-sm p-6">
-                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">
-                    Recent Completed Orders
-                </h3>
-                {completed.length === 0 ? (
-                    <p className="text-gray-400 text-sm text-center py-6">No completed orders yet</p>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b border-gray-100">
-                                    {['#', 'Buyer', 'Vehicle', 'Amount', 'Payment', 'Date'].map(h => (
-                                        <th key={h} className="text-left py-2 px-3 text-xs font-bold text-gray-400 uppercase tracking-wider">{h}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {completed.slice(0, 10).map(t => (
-                                    <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
-                                        <td className="py-3 px-3 text-gray-400 font-mono text-xs">#{t.id}</td>
-                                        <td className="py-3 px-3 font-semibold text-gray-700">{t.buyerFullName}</td>
-                                        <td className="py-3 px-3 text-gray-600">{t.vehicleBrand} {t.vehicleModel}</td>
-                                        <td className="py-3 px-3 font-bold text-green-600">₱{Number(t.amount).toLocaleString()}</td>
-                                        <td className="py-3 px-3 text-gray-500 text-xs">{t.paymentMode?.replace(/_/g, ' ')}</td>
-                                        <td className="py-3 px-3 text-gray-400 text-xs">{new Date(t.createdAt).toLocaleDateString('en-PH')}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+                {/* Payment Breakdown */}
+                <div className="bg-white rounded-2xl shadow-sm p-6">
+                    <h3 className="font-bold text-gray-800 mb-4">Payment Methods</h3>
+                    {paymentBreakdown.length === 0 ? (
+                        <p className="text-gray-400 text-sm text-center py-8">No transactions yet</p>
+                    ) : (
+                        <div className="space-y-3">
+                            {paymentBreakdown.map((p, i) => {
+                                const total = paymentBreakdown.reduce((s, x) => s + x.count, 0);
+                                const pct = Math.round((p.count / total) * 100);
+                                return (
+                                    <div key={p.mode}>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className="text-sm font-semibold text-gray-700">{p.mode}</span>
+                                            <span className="text-xs text-gray-400">{p.count} ({pct}%)</span>
+                                        </div>
+                                        <div className="w-full bg-gray-100 rounded-full h-2">
+                                            <div className="h-2 rounded-full transition-all duration-500"
+                                                style={{ width: `${pct}%`, backgroundColor: COLORS[i % COLORS.length] }} />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

@@ -1,433 +1,274 @@
-import { useState, useEffect } from "react";
-import { Plus, Trash2, X, Check, ShieldCheck } from "lucide-react";
-import api from "../../api/axios";
+import { useState, useEffect } from 'react';
+import { Plus, Trash2, X, Check, ShieldCheck } from 'lucide-react';
+import api from '../../api/axios';
 import usePageTitle from '../../hooks/usePageTitle';
 
-
-const ALL_PRIVILEGES = [
-  "INVENTORY_MANAGER",
-  "TRANSACTION_MANAGER",
-  "ACCOUNT_MANAGER",
-  "CONTENT_MODERATOR",
-  "SALES_ANALYST",
+const PRIVILEGE_OPTIONS = [
+    { value: 'INVENTORY_MANAGER', label: 'Inventory Manager', desc: 'Vehicles & Categories' },
+    { value: 'TRANSACTION_MANAGER', label: 'Transaction Manager', desc: 'Transactions only' },
+    { value: 'ACCOUNT_MANAGER', label: 'Account Manager', desc: 'Users only' },
+    { value: 'CONTENT_MODERATOR', label: 'Content Moderator', desc: 'Reviews only' },
+    { value: 'SALES_ANALYST', label: 'Sales Analyst', desc: 'Audit Logs & Sales Analytics' },
 ];
 
 function ManageAdmins() {
-  usePageTitle('Manage Admins');
-  
-  const [admins, setAdmins] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [showPrivModal, setShowPrivModal] = useState(false);
-  const [selectedAdmin, setSelectedAdmin] = useState(null);
-  const [success, setSuccess] = useState("");
-  const [error, setError] = useState("");
+    usePageTitle('Manage Admins');
+    const [admins, setAdmins] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showModal, setShowModal] = useState(false);
+    const [success, setSuccess] = useState('');
+    const [error, setError] = useState('');
+    const [form, setForm] = useState({
+        firstName: '', lastName: '', email: '',
+        password: '', privilege: '',
+    });
 
-  const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    privileges: [],
-  });
+    useEffect(() => { fetchAdmins(); }, []);
 
-  const [editPrivileges, setEditPrivileges] = useState([]);
+    const fetchAdmins = async () => {
+        try {
+            const res = await api.get('/superadmin/admins');
+            setAdmins(res.data.data || []);
+        } catch (err) {
+            setError('Failed to fetch admins!');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  useEffect(() => {
-    fetchAdmins();
-  }, []);
-
-  const fetchAdmins = async () => {
-    try {
-      const res = await api.get("/superadmin/admins");
-      setAdmins(res.data.data);
-    } catch (err) {
-      setError("Failed to fetch admins!");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handle = (e) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const togglePrivilege = (priv) => {
-    setForm((prev) => ({
-      ...prev,
-      privileges: prev.privileges.includes(priv)
-        ? prev.privileges.filter((p) => p !== priv)
-        : [...prev.privileges, priv],
-    }));
-  };
-
-  const toggleEditPrivilege = (priv) => {
-    setEditPrivileges((prev) =>
-      prev.includes(priv) ? prev.filter((p) => p !== priv) : [...prev, priv],
-    );
-  };
-
-  const handleCreateAdmin = async () => {
-    if (!form.firstName || !form.lastName || !form.email || !form.password) {
-      setError("Please fill all required fields!");
-      return;
-    }
-    try {
-      await api.post("/superadmin/admins", {
-        firstName: form.firstName,
-        lastName: form.lastName,
-        email: form.email,
-        password: form.password,
-        privileges: form.privileges,
-      });
-      setSuccess("Admin created successfully!");
-      setShowModal(false);
-      fetchAdmins();
-      setTimeout(() => setSuccess(""), 3000);
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to create admin!");
-    }
-  };
-
-  const openPrivModal = (admin) => {
-    setSelectedAdmin(admin);
-    setEditPrivileges(admin.privileges || []);
-    setShowPrivModal(true);
-    setError("");
-  };
-
-  const handleUpdatePrivileges = async () => {
-    try {
-      await api.put(
-        `/superadmin/admins/${selectedAdmin.id}/privileges`,
-        editPrivileges,
-      );
-      setSuccess("Privileges updated!");
-      setShowPrivModal(false);
-      fetchAdmins();
-      setTimeout(() => setSuccess(""), 3000);
-    } catch (err) {
-      setError("Failed to update privileges!");
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this admin?")) return;
-    try {
-      await api.delete(`/superadmin/admins/${id}`);
-      setSuccess("Admin deleted!");
-      fetchAdmins();
-      setTimeout(() => setSuccess(""), 3000);
-    } catch (err) {
-      setError("Failed to delete admin!");
-    }
-  };
-
-  const inputClass =
-    "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition";
-  const labelClass = "block text-xs font-semibold text-gray-600 mb-1";
-
-  return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-gray-800">Manage Admins</h2>
-          <p className="text-sm text-gray-400">{admins.length} admins total</p>
-        </div>
-        <button
-          onClick={() => {
-            setForm({
-              firstName: "",
-              lastName: "",
-              email: "",
-              password: "",
-              privileges: [],
+    const handleCreate = async () => {
+        if (!form.firstName || !form.lastName || !form.email || !form.password || !form.privilege) {
+            setError('All fields are required!');
+            return;
+        }
+        if (form.password.length < 8) {
+            setError('Password must be at least 8 characters!');
+            return;
+        }
+        try {
+            await api.post('/superadmin/admins', {
+                firstName: form.firstName,
+                lastName: form.lastName,
+                email: form.email,
+                password: form.password,
+                privileges: [form.privilege],
             });
-            setError("");
-            setShowModal(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold text-sm transition"
-        >
-          <Plus size={16} /> Create Admin
-        </button>
-      </div>
+            setSuccess('Admin created! Credentials sent to their email.');
+            setShowModal(false);
+            setForm({ firstName: '', lastName: '', email: '', password: '', privilege: '' });
+            fetchAdmins();
+            setTimeout(() => setSuccess(''), 4000);
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to create admin!');
+        }
+    };
 
-      {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
-          <Check size={16} /> {success}
-        </div>
-      )}
+    const handleDelete = async (id) => {
+        if (!window.confirm('Delete this admin?')) return;
+        try {
+            await api.delete(`/superadmin/admins/${id}`);
+            setSuccess('Admin deleted!');
+            fetchAdmins();
+            setTimeout(() => setSuccess(''), 3000);
+        } catch (err) {
+            setError('Failed to delete!');
+        }
+    };
 
-      {error && !showModal && !showPrivModal && (
-        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">
-          ⚠️ {error}
-        </div>
-      )}
+    const getPrivilegeLabel = (privileges) => {
+        if (!privileges || privileges.length === 0) return 'No privilege';
+        const p = PRIVILEGE_OPTIONS.find(o => o.value === privileges[0]);
+        return p ? p.label : privileges[0];
+    };
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                {["#", "Name", "Email", "Privileges", "Status", "Actions"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="text-left py-3 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider"
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="text-center py-12 text-gray-400 text-sm"
-                  >
-                    Loading admins...
-                  </td>
-                </tr>
-              ) : admins.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="text-center py-12 text-gray-400 text-sm"
-                  >
-                    No admins yet — create one!
-                  </td>
-                </tr>
-              ) : (
-                admins.map((a) => (
-                  <tr
-                    key={a.id}
-                    className="border-b border-gray-50 hover:bg-gray-50 transition"
-                  >
-                    <td className="py-3 px-4 text-gray-400 font-mono text-xs">
-                      #{a.id}
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-gray-800">
-                      {a.fullName}
-                    </td>
-                    <td className="py-3 px-4 text-gray-600">{a.email}</td>
-                    <td className="py-3 px-4">
-                      <div className="flex flex-wrap gap-1">
-                        {a.privileges?.length > 0 ? (
-                          a.privileges.map((p) => (
-                            <span
-                              key={p}
-                              className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-semibold"
-                            >
-                              {p.replace(/_/g, " ")}
+    const privilegeColor = (privilege) => ({
+        INVENTORY_MANAGER: 'bg-blue-100 text-blue-700',
+        TRANSACTION_MANAGER: 'bg-purple-100 text-purple-700',
+        ACCOUNT_MANAGER: 'bg-green-100 text-green-700',
+        CONTENT_MODERATOR: 'bg-yellow-100 text-yellow-700',
+        SALES_ANALYST: 'bg-orange-100 text-orange-700',
+    }[privilege] || 'bg-gray-100 text-gray-600');
+
+    const inputClass = "w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition";
+
+    return (
+        <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h2 className="text-xl font-bold text-gray-800">Manage Admins</h2>
+                    <p className="text-sm text-gray-400">{admins.length} sub-admin{admins.length !== 1 ? 's' : ''}</p>
+                </div>
+                <button onClick={() => { setShowModal(true); setError(''); }}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold text-sm transition">
+                    <Plus size={16} /> Add Admin
+                </button>
+            </div>
+
+            {success && (
+                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
+                    <Check size={16} /> {success}
+                </div>
+            )}
+            {error && !showModal && (
+                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">⚠️ {error}</div>
+            )}
+
+            {/* Privilege Legend */}
+            <div className="bg-white rounded-2xl shadow-sm p-4">
+                <p className="text-xs font-bold text-gray-500 uppercase mb-3">Privilege Levels</p>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    {PRIVILEGE_OPTIONS.map(p => (
+                        <div key={p.value} className="text-center">
+                            <span className={`inline-block px-2 py-1 rounded-full text-xs font-bold ${privilegeColor(p.value)}`}>
+                                {p.label}
                             </span>
-                          ))
-                        ) : (
-                          <span className="text-gray-400 text-xs">
-                            No privileges
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-bold ${a.active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
-                      >
-                        {a.active ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => openPrivModal(a)}
-                          className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition"
-                          title="Edit Privileges"
-                        >
-                          <ShieldCheck size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(a.id)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition"
-                          title="Delete Admin"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                            <p className="text-xs text-gray-400 mt-1">{p.desc}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Admins Table */}
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-100">
+                            <tr>
+                                {['#', 'Name', 'Email', 'Privilege', 'Status', 'Actions'].map(h => (
+                                    <th key={h} className="text-left py-3 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr><td colSpan={6} className="text-center py-12 text-gray-400 text-sm">Loading...</td></tr>
+                            ) : admins.length === 0 ? (
+                                <tr><td colSpan={6} className="text-center py-12 text-gray-400 text-sm">No sub-admins yet</td></tr>
+                            ) : (
+                                admins.map(admin => (
+                                    <tr key={admin.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
+                                        <td className="py-3 px-4 text-gray-400 font-mono text-xs">#{admin.id}</td>
+                                        <td className="py-3 px-4">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-8 h-8 bg-red-100 text-red-600 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                                    {admin.firstName?.charAt(0)}
+                                                </div>
+                                                <p className="font-semibold text-gray-800">{admin.fullName}</p>
+                                            </div>
+                                        </td>
+                                        <td className="py-3 px-4 text-gray-500 text-sm">{admin.email}</td>
+                                        <td className="py-3 px-4">
+                                            {admin.privileges?.length > 0 ? (
+                                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${privilegeColor(admin.privileges[0])}`}>
+                                                    {getPrivilegeLabel(admin.privileges)}
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs text-gray-400">None</span>
+                                            )}
+                                        </td>
+                                        <td className="py-3 px-4">
+                                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${admin.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                                                {admin.active ? 'Active' : 'Inactive'}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-4">
+                                            <button onClick={() => handleDelete(admin.id)}
+                                                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition">
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Create Admin Modal */}
+            {showModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+                        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                            <div className="flex items-center gap-2">
+                                <ShieldCheck size={20} className="text-red-600" />
+                                <h3 className="text-lg font-bold text-gray-800">Create Sub-Admin</h3>
+                            </div>
+                            <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            {error && (
+                                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">⚠️ {error}</div>
+                            )}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">First Name *</label>
+                                    <input value={form.firstName}
+                                        onChange={e => setForm(prev => ({ ...prev, firstName: e.target.value }))}
+                                        className={inputClass} placeholder="Juan" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Last Name *</label>
+                                    <input value={form.lastName}
+                                        onChange={e => setForm(prev => ({ ...prev, lastName: e.target.value }))}
+                                        className={inputClass} placeholder="Dela Cruz" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address *</label>
+                                <input type="email" value={form.email}
+                                    onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
+                                    className={inputClass} placeholder="admin@carpeso.com" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Temporary Password *</label>
+                                <input type="password" value={form.password}
+                                    onChange={e => setForm(prev => ({ ...prev, password: e.target.value }))}
+                                    className={inputClass} placeholder="Min. 8 characters" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Assign Role / Privilege *</label>
+                                <select value={form.privilege}
+                                    onChange={e => setForm(prev => ({ ...prev, privilege: e.target.value }))}
+                                    className={inputClass}>
+                                    <option value="">Select Privilege</option>
+                                    {PRIVILEGE_OPTIONS.map(p => (
+                                        <option key={p.value} value={p.value}>
+                                            {p.label} — {p.desc}
+                                        </option>
+                                    ))}
+                                </select>
+                                {form.privilege && (
+                                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <p className="text-xs text-blue-700 font-semibold">
+                                            Access: {PRIVILEGE_OPTIONS.find(p => p.value === form.privilege)?.desc}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-xs">
+                                ⚠️ Login credentials will be sent to the admin's email upon creation.
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 p-6 border-t border-gray-100">
+                            <button onClick={() => { setShowModal(false); setError(''); }}
+                                className="flex-1 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition font-semibold">
+                                Cancel
+                            </button>
+                            <button onClick={handleCreate}
+                                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition">
+                                Create Admin
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
-      </div>
-
-      {/* Create Admin Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white">
-              <h3 className="text-lg font-bold text-gray-800">Create Admin</h3>
-              <button
-                onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
-                  ⚠️ {error}
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>First Name *</label>
-                  <input
-                    name="firstName"
-                    value={form.firstName}
-                    onChange={handle}
-                    className={inputClass}
-                    placeholder="Juan"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Last Name *</label>
-                  <input
-                    name="lastName"
-                    value={form.lastName}
-                    onChange={handle}
-                    className={inputClass}
-                    placeholder="Dela Cruz"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className={labelClass}>Email *</label>
-                <input
-                  name="email"
-                  type="email"
-                  value={form.email}
-                  onChange={handle}
-                  className={inputClass}
-                  placeholder="admin@carpeso.com"
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Password *</label>
-                <input
-                  name="password"
-                  type="password"
-                  value={form.password}
-                  onChange={handle}
-                  className={inputClass}
-                  placeholder="Min. 8 characters"
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Privileges</label>
-                <div className="space-y-2 mt-2">
-                  {ALL_PRIVILEGES.map((p) => (
-                    <label
-                      key={p}
-                      className="flex items-center gap-3 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={form.privileges.includes(p)}
-                        onChange={() => togglePrivilege(p)}
-                        className="w-4 h-4 accent-red-600"
-                      />
-                      <span className="text-sm text-gray-700 font-medium">
-                        {p.replace(/_/g, " ")}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-3 p-6 border-t border-gray-100 sticky bottom-0 bg-white">
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex-1 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition font-semibold"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateAdmin}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition"
-              >
-                Create Admin
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Privileges Modal */}
-      {showPrivModal && selectedAdmin && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-800">
-                Edit Privileges
-              </h3>
-              <button
-                onClick={() => setShowPrivModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-3">
-              <p className="text-sm text-gray-500">
-                Admin: <strong>{selectedAdmin.fullName}</strong>
-              </p>
-              {ALL_PRIVILEGES.map((p) => (
-                <label
-                  key={p}
-                  className="flex items-center gap-3 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={editPrivileges.includes(p)}
-                    onChange={() => toggleEditPrivilege(p)}
-                    className="w-4 h-4 accent-red-600"
-                  />
-                  <span className="text-sm text-gray-700 font-medium">
-                    {p.replace(/_/g, " ")}
-                  </span>
-                </label>
-              ))}
-            </div>
-
-            <div className="flex gap-3 p-6 border-t border-gray-100">
-              <button
-                onClick={() => setShowPrivModal(false)}
-                className="flex-1 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition font-semibold"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUpdatePrivileges}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition"
-              >
-                Save Privileges
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+    );
 }
 
 export default ManageAdmins;

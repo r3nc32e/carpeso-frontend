@@ -236,9 +236,11 @@ function Catalog() {
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <p className="text-red-600 font-bold text-lg">₱{Number(v.price).toLocaleString()}</p>
-                                    {v.quantity > 1 && (
-                                        <span className="text-xs text-gray-400">{v.quantity} units</span>
-                                    )}
+                                    <div className="text-right">
+                                        {v.quantity > 0 && v.status === 'AVAILABLE' && (
+                                            <p className="text-xs text-gray-400">{v.quantity} unit{v.quantity !== 1 ? 's' : ''} left</p>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>

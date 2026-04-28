@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, X, CheckCheck } from 'lucide-react';
+import { Bell, X } from 'lucide-react';
 import api from '../api/axios';
 
 function NotificationDropdown({ variant = 'admin' }) {
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [open, setOpen] = useState(false);
-    const [loading, setLoading] = useState(false);
     const dropdownRef = useRef(null);
 
     useEffect(() => {
@@ -38,24 +37,17 @@ function NotificationDropdown({ variant = 'admin' }) {
         }
     };
 
-    const markAsRead = async (id) => {
-        try {
-            await api.put(`/notifications/${id}/read`);
-            fetchNotifications();
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    const markAllAsRead = async () => {
-        setLoading(true);
-        try {
-            await api.put('/notifications/read-all');
-            fetchNotifications();
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
+    const handleOpen = async () => {
+        setOpen(!open);
+        // Auto mark all as read when opening
+        if (!open && unreadCount > 0) {
+            try {
+                await api.put('/notifications/read-all');
+                setUnreadCount(0);
+                setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+            } catch (err) {
+                console.error(err);
+            }
         }
     };
 
@@ -65,6 +57,7 @@ function NotificationDropdown({ variant = 'admin' }) {
         WARRANTY_CLAIM: '🛡️',
         REVIEW: '⭐',
         SYSTEM: '🔔',
+        ACCOUNT_WARNING: '⚠️',
     }[type] || '🔔');
 
     const timeAgo = (dateStr) => {
@@ -78,22 +71,19 @@ function NotificationDropdown({ variant = 'admin' }) {
         return 'Just now';
     };
 
-    // Admin = gray bg bell, Buyer = red bg bell
     const bellBtnClass = variant === 'admin'
         ? 'relative p-2 rounded-full hover:bg-gray-100 transition'
         : 'relative p-2 rounded-full hover:bg-red-700 transition';
 
-    const bellIconClass = variant === 'admin'
-        ? 'text-gray-600'
-        : 'text-red-100';
+    const bellIconClass = variant === 'admin' ? 'text-gray-600' : 'text-red-100';
 
     const badgeClass = variant === 'admin'
-        ? 'absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-600 text-white rounded-full text-xs font-bold flex items-center justify-center'
-        : 'absolute -top-0.5 -right-0.5 w-5 h-5 bg-white text-red-600 rounded-full text-xs font-bold flex items-center justify-center';
+        ? 'absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-600 text-white rounded-full text-xs font-bold flex items-center justify-center px-1'
+        : 'absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-white text-red-600 rounded-full text-xs font-bold flex items-center justify-center px-1';
 
     return (
         <div className="relative" ref={dropdownRef}>
-            <button onClick={() => setOpen(!open)} className={bellBtnClass}>
+            <button onClick={handleOpen} className={bellBtnClass}>
                 <Bell size={18} className={bellIconClass} />
                 {unreadCount > 0 && (
                     <span className={badgeClass}>
@@ -108,27 +98,10 @@ function NotificationDropdown({ variant = 'admin' }) {
                         <div className="flex items-center gap-2">
                             <Bell size={16} className="text-red-600" />
                             <span className="font-bold text-gray-800 text-sm">Notifications</span>
-                            {unreadCount > 0 && (
-                                <span className="px-1.5 py-0.5 bg-red-600 text-white rounded-full text-xs font-bold">
-                                    {unreadCount}
-                                </span>
-                            )}
                         </div>
-                        <div className="flex items-center gap-2">
-                            {unreadCount > 0 && (
-                                <button
-                                    onClick={markAllAsRead}
-                                    disabled={loading}
-                                    className="text-xs text-red-600 hover:underline font-semibold flex items-center gap-1"
-                                >
-                                    <CheckCheck size={12} /> Mark all read
-                                </button>
-                            )}
-                            <button onClick={() => setOpen(false)}
-                                className="p-1 hover:bg-gray-200 rounded-lg transition">
-                                <X size={14} className="text-gray-400" />
-                            </button>
-                        </div>
+                        <button onClick={() => setOpen(false)} className="p-1 hover:bg-gray-200 rounded-lg transition">
+                            <X size={14} className="text-gray-400" />
+                        </button>
                     </div>
 
                     <div className="max-h-80 overflow-y-auto">
@@ -139,23 +112,11 @@ function NotificationDropdown({ variant = 'admin' }) {
                             </div>
                         ) : (
                             notifications.map(n => (
-                                <div
-                                    key={n.id}
-                                    onClick={() => !n.read && markAsRead(n.id)}
-                                    className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition border-b border-gray-50 cursor-pointer ${!n.read ? 'bg-red-50' : ''}`}
-                                >
-                                    <span className="text-xl flex-shrink-0 mt-0.5">
-                                        {notifIcon(n.type)}
-                                    </span>
+                                <div key={n.id}
+                                    className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition border-b border-gray-50">
+                                    <span className="text-xl flex-shrink-0 mt-0.5">{notifIcon(n.type)}</span>
                                     <div className="flex-1 min-w-0">
-                                        <div className="flex items-start justify-between gap-2">
-                                            <p className={`text-sm font-semibold truncate ${!n.read ? 'text-red-700' : 'text-gray-800'}`}>
-                                                {n.title}
-                                            </p>
-                                            {!n.read && (
-                                                <div className="w-2 h-2 bg-red-600 rounded-full flex-shrink-0 mt-1" />
-                                            )}
-                                        </div>
+                                        <p className="text-sm font-semibold text-gray-800 truncate">{n.title}</p>
                                         <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.message}</p>
                                         <p className="text-xs text-gray-400 mt-1">{timeAgo(n.createdAt)}</p>
                                     </div>
@@ -166,7 +127,7 @@ function NotificationDropdown({ variant = 'admin' }) {
 
                     {notifications.length > 0 && (
                         <div className="px-4 py-2 border-t border-gray-100 bg-gray-50 text-center">
-                            <p className="text-xs text-gray-400">{notifications.length} total notifications</p>
+                            <p className="text-xs text-gray-400">{notifications.length} notifications</p>
                         </div>
                     )}
                 </div>

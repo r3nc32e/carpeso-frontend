@@ -2,9 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
-import { Eye, EyeOff, CheckCircle, Circle } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle, Circle, Upload } from 'lucide-react';
 import usePageTitle from '../hooks/usePageTitle';
-
 
 function Register() {
     usePageTitle('Register');
@@ -17,6 +16,8 @@ function Register() {
     const [showConfirm, setShowConfirm] = useState(false);
     const [registeredEmail, setRegisteredEmail] = useState('');
     const [otp, setOtp] = useState('');
+    const [primaryIdName, setPrimaryIdName] = useState('');
+    const [secondaryIdName, setSecondaryIdName] = useState('');
 
     const [form, setForm] = useState({
         firstName: '', lastName: '', middleName: '', suffix: '',
@@ -41,9 +42,7 @@ function Register() {
         }
     };
 
-    const handle = (e) => {
-        setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
-    };
+    const handle = (e) => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
     const pwChecks = {
         length: form.password.length >= 8,
@@ -59,24 +58,21 @@ function Register() {
     const step1Progress = Math.round((step1Fields.filter(Boolean).length / step1Fields.length) * 100);
     const step2Fields = [form.cityName, form.barangayName, form.password, form.confirmPassword];
     const step2Progress = Math.round((step2Fields.filter(Boolean).length / step2Fields.length) * 100);
+    const step3Progress = primaryIdName ? (secondaryIdName ? 100 : 50) : 0;
+
+    const handleStep2Next = () => {
+        if (form.password !== form.confirmPassword) { setError('Passwords do not match!'); return; }
+        if (form.password.length < 8) { setError('Password must be at least 8 characters!'); return; }
+        if (!form.agreedToTerms) { setError('You must agree to the Terms and Conditions!'); return; }
+        setError('');
+        setStep(3);
+    };
 
     const handleSubmit = async () => {
-        if (!form.agreedToTerms) {
-            setError('You must agree to the Terms and Conditions to register!');
-            return;
-        }
-        if (form.password !== form.confirmPassword) {
-            setError('Passwords do not match!');
-            return;
-        }
-        if (form.password.length < 8) {
-            setError('Password must be at least 8 characters!');
-            return;
-        }
         setError('');
         setLoading(true);
         try {
-            const res = await api.post('/auth/register', {
+            await api.post('/auth/register', {
                 firstName: form.firstName,
                 lastName: form.lastName,
                 middleName: form.middleName,
@@ -90,7 +86,7 @@ function Register() {
                 lotNo: form.lotNo,
             });
             setRegisteredEmail(form.email);
-            setStep(3);
+            setStep(4);
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed!');
         } finally {
@@ -126,6 +122,8 @@ function Register() {
     const inputClass = "w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition";
     const labelClass = "block text-sm font-semibold text-gray-700 mb-1.5";
 
+    const stepProgress = step === 1 ? step1Progress : step === 2 ? step2Progress : step === 3 ? step3Progress : 100;
+
     return (
         <div className="min-h-screen flex">
             {/* Left Panel */}
@@ -138,11 +136,26 @@ function Register() {
                     <p className="text-red-100 text-lg max-w-sm italic">
                         "Drive the deal. Own the wheel."
                     </p>
+                    <div className="mt-8 text-left bg-red-700 bg-opacity-50 rounded-2xl p-6 space-y-3">
+                        {[
+                            { step: 1, label: 'Personal Info' },
+                            { step: 2, label: 'Address & Password' },
+                            { step: 3, label: 'ID Verification' },
+                            { step: 4, label: 'Email Verification' },
+                        ].map(s => (
+                            <div key={s.step} className={`flex items-center gap-3 ${step >= s.step ? 'text-white' : 'text-red-300'}`}>
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${step > s.step ? 'bg-green-500' : step === s.step ? 'bg-white text-red-600' : 'bg-red-500'}`}>
+                                    {step > s.step ? '✓' : s.step}
+                                </div>
+                                <span className="text-sm font-semibold">{s.label}</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
 
             {/* Right Panel */}
-            <div className="w-full lg:w-1/2 flex items-center justify-center bg-gray-50 p-8">
+            <div className="w-full lg:w-1/2 flex items-center justify-center bg-gray-50 p-8 overflow-y-auto">
                 <div className="w-full max-w-md">
                     {/* Mobile Logo */}
                     <div className="flex justify-center mb-6 lg:hidden">
@@ -151,15 +164,13 @@ function Register() {
                     </div>
 
                     {/* Step Progress */}
-                    <div className="flex items-center justify-center mb-6 gap-3">
-                        {[1, 2, 3].map((s, i) => (
-                            <div key={s} className="flex items-center gap-3">
+                    <div className="flex items-center justify-center mb-6 gap-2">
+                        {[1, 2, 3, 4].map((s, i) => (
+                            <div key={s} className="flex items-center gap-2">
                                 <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold transition ${step > s ? 'bg-green-500 text-white' : step === s ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
                                     {step > s ? '✓' : s}
                                 </div>
-                                {i < 2 && (
-                                    <div className={`h-1 w-12 rounded transition ${step > s ? 'bg-green-500' : 'bg-gray-200'}`} />
-                                )}
+                                {i < 3 && <div className={`h-1 w-8 rounded transition ${step > s ? 'bg-green-500' : 'bg-gray-200'}`} />}
                             </div>
                         ))}
                     </div>
@@ -167,22 +178,22 @@ function Register() {
                     <div className="bg-white rounded-2xl shadow-lg p-8">
                         <div className="flex items-center justify-between mb-1">
                             <h2 className="text-2xl font-bold text-gray-900">
-                                {step === 1 ? 'Personal Info' : step === 2 ?  'Address & Password' : 'Verify Email'}
+                                {step === 1 ? 'Personal Info' :
+                                 step === 2 ? 'Address & Password' :
+                                 step === 3 ? 'ID Verification' : 'Verify Email'}
                             </h2>
-                            <span className="text-xs text-gray-400">Step {step} of 3</span>
+                            <span className="text-xs text-gray-400">Step {step} of 4</span>
                         </div>
 
-                        {step < 3 && (
+                        {step < 4 && (
                             <div className="mb-5">
                                 <div className="flex justify-between text-xs text-gray-400 mb-1">
-                                    <span>Form Progress</span>
-                                    <span>{step === 1 ? step1Progress : step2Progress}%</span>
+                                    <span>Progress</span>
+                                    <span>{stepProgress}%</span>
                                 </div>
                                 <div className="w-full bg-gray-100 rounded-full h-2">
-                                    <div
-                                        className="bg-red-500 h-2 rounded-full transition-all duration-500"
-                                        style={{ width: `${step === 1 ? step1Progress : step2Progress}%` }}
-                                    />
+                                    <div className="bg-red-500 h-2 rounded-full transition-all duration-500"
+                                        style={{ width: `${stepProgress}%` }} />
                                 </div>
                             </div>
                         )}
@@ -198,27 +209,25 @@ function Register() {
                             <div className="space-y-4">
                                 <div>
                                     <label className={labelClass}>First Name *</label>
-                                    <input name="firstName" value={form.firstName}
-                                        onChange={handle} className={`${inputClass} ${form.firstName ? 'border-green-400' : ''}`}
+                                    <input name="firstName" value={form.firstName} onChange={handle}
+                                        className={`${inputClass} ${form.firstName ? 'border-green-400' : ''}`}
                                         placeholder="Juan" />
                                 </div>
                                 <div>
                                     <label className={labelClass}>Last Name *</label>
-                                    <input name="lastName" value={form.lastName}
-                                        onChange={handle} className={`${inputClass} ${form.lastName ? 'border-green-400' : ''}`}
+                                    <input name="lastName" value={form.lastName} onChange={handle}
+                                        className={`${inputClass} ${form.lastName ? 'border-green-400' : ''}`}
                                         placeholder="Dela Cruz" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className={labelClass}>Middle Name</label>
-                                        <input name="middleName" value={form.middleName}
-                                            onChange={handle} className={inputClass}
-                                            placeholder="Santos (optional)" />
+                                        <input name="middleName" value={form.middleName} onChange={handle}
+                                            className={inputClass} placeholder="Santos" />
                                     </div>
                                     <div>
                                         <label className={labelClass}>Suffix</label>
-                                        <select name="suffix" value={form.suffix}
-                                            onChange={handle} className={inputClass}>
+                                        <select name="suffix" value={form.suffix} onChange={handle} className={inputClass}>
                                             <option value="">None</option>
                                             <option value="Jr.">Jr.</option>
                                             <option value="Sr.">Sr.</option>
@@ -230,13 +239,10 @@ function Register() {
                                 </div>
                                 <div>
                                     <label className={labelClass}>Email Address *</label>
-                                    <input name="email" type="email" value={form.email}
-                                        onChange={handle}
+                                    <input name="email" type="email" value={form.email} onChange={handle}
                                         className={`${inputClass} ${form.email ? 'border-green-400' : ''}`}
                                         placeholder="juan@gmail.com" />
-                                    <p className="text-xs text-gray-400 mt-1">
-                                        📧 A verification code will be sent to this email
-                                    </p>
+                                    <p className="text-xs text-gray-400 mt-1">📧 A verification code will be sent to this email</p>
                                 </div>
                                 <div>
                                     <label className={labelClass}>Phone Number *</label>
@@ -254,8 +260,7 @@ function Register() {
                                         setError('');
                                         setStep(2);
                                     }}
-                                    className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold tracking-wider transition mt-2"
-                                >
+                                    className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition mt-2">
                                     Next →
                                 </button>
                                 <p className="text-center text-sm text-gray-500">
@@ -269,7 +274,7 @@ function Register() {
                         {step === 2 && (
                             <div className="space-y-4">
                                 <div>
-                                    <label className={labelClass}>City *</label>
+                                    <label className={labelClass}>City / Municipality *</label>
                                     <select onChange={e => handleCityChange(e.target.value)}
                                         className={`${inputClass} ${form.cityName ? 'border-green-400' : ''}`}>
                                         <option value="">Select City</option>
@@ -278,18 +283,16 @@ function Register() {
                                 </div>
                                 <div>
                                     <label className={labelClass}>Barangay *</label>
-                                    <select name="barangayName" value={form.barangayName}
-                                        onChange={handle}
+                                    <select name="barangayName" value={form.barangayName} onChange={handle}
                                         className={`${inputClass} ${form.barangayName ? 'border-green-400' : ''}`}>
                                         <option value="">Select Barangay</option>
                                         {barangays.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className={labelClass}>Street / Address</label>
-                                    <input name="streetNo" value={form.streetNo}
-                                        onChange={handle} className={inputClass}
-                                        placeholder="123 Main Street (optional)" />
+                                    <label className={labelClass}>Street / House No.</label>
+                                    <input name="streetNo" value={form.streetNo} onChange={handle}
+                                        className={inputClass} placeholder="123 Main Street (optional)" />
                                 </div>
                                 <div>
                                     <label className={labelClass}>Password * {form.password && <span className="text-green-500">✓</span>}</label>
@@ -299,7 +302,7 @@ function Register() {
                                             className={`${inputClass} pr-11 ${form.password ? 'border-green-400' : ''}`}
                                             placeholder="Min. 8 characters" />
                                         <button type="button" onClick={() => setShowPassword(!showPassword)}
-                                            className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
+                                            className="absolute right-3 top-2.5 text-gray-400">
                                             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                         </button>
                                     </div>
@@ -307,13 +310,13 @@ function Register() {
                                         <div className="mt-2">
                                             <div className="flex gap-1 mb-1">
                                                 {[1,2,3,4].map(i => (
-                                                    <div key={i} className={`h-1.5 flex-1 rounded-full transition-all ${i <= pwStrength ? pwStrengthColor : 'bg-gray-200'}`} />
+                                                    <div key={i} className={`h-1.5 flex-1 rounded-full ${i <= pwStrength ? pwStrengthColor : 'bg-gray-200'}`} />
                                                 ))}
                                             </div>
                                             <p className={`text-xs font-semibold ${pwStrength <= 1 ? 'text-red-500' : pwStrength === 2 ? 'text-orange-400' : pwStrength === 3 ? 'text-yellow-500' : 'text-green-500'}`}>
                                                 Password Strength: {pwStrengthLabel}
                                             </p>
-                                            <div className="grid grid-cols-2 gap-1 mt-2">
+                                            <div className="grid grid-cols-2 gap-1 mt-1">
                                                 {[
                                                     { check: pwChecks.length, label: 'Min. 8 characters' },
                                                     { check: pwChecks.upper, label: 'Uppercase letter' },
@@ -330,14 +333,14 @@ function Register() {
                                     )}
                                 </div>
                                 <div>
-                                    <label className={labelClass}>Confirm Password * {form.confirmPassword && <span className="text-green-500">✓</span>}</label>
+                                    <label className={labelClass}>Confirm Password *</label>
                                     <div className="relative">
                                         <input name="confirmPassword" type={showConfirm ? 'text' : 'password'}
                                             value={form.confirmPassword} onChange={handle}
                                             className={`${inputClass} pr-11 ${form.confirmPassword && form.confirmPassword === form.password ? 'border-green-400' : form.confirmPassword ? 'border-red-400' : ''}`}
                                             placeholder="Re-enter password" />
                                         <button type="button" onClick={() => setShowConfirm(!showConfirm)}
-                                            className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
+                                            className="absolute right-3 top-2.5 text-gray-400">
                                             {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
                                         </button>
                                     </div>
@@ -347,46 +350,123 @@ function Register() {
                                         </p>
                                     )}
                                 </div>
-                                {/* Terms Agreement */}
+
+                                {/* Terms */}
                                 <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
                                     <label className="flex items-start gap-3 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={form.agreedToTerms}
+                                        <input type="checkbox" checked={form.agreedToTerms}
                                             onChange={e => setForm(prev => ({ ...prev, agreedToTerms: e.target.checked }))}
-                                            className="w-4 h-4 mt-0.5 accent-red-600 flex-shrink-0"
-                                        />
+                                            className="w-4 h-4 mt-0.5 accent-red-600 flex-shrink-0" />
                                         <span className="text-xs text-gray-600 leading-relaxed">
                                             I have read and agree to the{' '}
-                                            <a href="/terms" target="_blank"
-                                                className="text-red-600 font-bold hover:underline">
-                                                Terms and Conditions
-                                            </a>{' '}
-                                            and{' '}
-                                            <a href="/privacy" target="_blank"
-                                                className="text-red-600 font-bold hover:underline">
-                                                Privacy Policy
-                                            </a>{' '}
-                                            of Carpeso. I consent to the collection and processing of my personal
-                                            data in accordance with the Data Privacy Act of 2012 (R.A. 10173).
+                                            <a href="/terms" target="_blank" className="text-red-600 font-bold hover:underline">Terms and Conditions</a>
+                                            {' '}and{' '}
+                                            <a href="/privacy" target="_blank" className="text-red-600 font-bold hover:underline">Privacy Policy</a>
+                                            {' '}of Carpeso. I consent to the collection and processing of my personal data in accordance with the Data Privacy Act of 2012 (R.A. 10173).
                                         </span>
                                     </label>
                                 </div>
-                                <div className="flex gap-3 pt-2">
+
+                                <div className="flex gap-3">
                                     <button onClick={() => setStep(1)}
                                         className="flex-1 py-3 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition font-semibold">
                                         ← Back
                                     </button>
-                                    <button onClick={handleSubmit} disabled={loading}
-                                        className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition disabled:opacity-60">
-                                        {loading ? 'Creating...' : 'Create Account'}
+                                    <button onClick={handleStep2Next}
+                                        className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition">
+                                        Next →
                                     </button>
                                 </div>
                             </div>
                         )}
 
-                        {/* Step 3 — Email OTP Verification */}
+                        {/* Step 3 — ID Verification */}
                         {step === 3 && (
+                            <div className="space-y-4">
+                                <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl text-sm">
+                                    🪪 Please upload valid government IDs for verification. This is required for vehicle purchases.
+                                </div>
+
+                                {/* Primary ID */}
+                                <div>
+                                    <label className={labelClass}>
+                                        Primary ID — Driver's License *
+                                        {primaryIdName && <span className="text-green-500 ml-2">✓</span>}
+                                    </label>
+                                    <label className={`block border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition ${primaryIdName ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-red-400'}`}>
+                                        {primaryIdName ? (
+                                            <div>
+                                                <p className="text-green-600 font-semibold text-sm">✅ {primaryIdName}</p>
+                                                <p className="text-xs text-gray-400 mt-1">Click to change</p>
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <Upload size={24} className="mx-auto mb-2 text-gray-400" />
+                                                <p className="text-gray-500 text-sm font-semibold">Click to upload Driver's License</p>
+                                                <p className="text-gray-400 text-xs mt-1">Front and back • JPG, PNG, PDF • Max 5MB</p>
+                                            </div>
+                                        )}
+                                        <input type="file" accept="image/*,.pdf" className="hidden"
+                                            onChange={e => {
+                                                if (e.target.files[0]) setPrimaryIdName(e.target.files[0].name);
+                                            }} />
+                                    </label>
+                                </div>
+
+                                {/* Secondary ID */}
+                                <div>
+                                    <label className={labelClass}>
+                                        Secondary ID — PhilSys / TIN / Passport *
+                                        {secondaryIdName && <span className="text-green-500 ml-2">✓</span>}
+                                    </label>
+                                    <label className={`block border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition ${secondaryIdName ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-red-400'}`}>
+                                        {secondaryIdName ? (
+                                            <div>
+                                                <p className="text-green-600 font-semibold text-sm">✅ {secondaryIdName}</p>
+                                                <p className="text-xs text-gray-400 mt-1">Click to change</p>
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <Upload size={24} className="mx-auto mb-2 text-gray-400" />
+                                                <p className="text-gray-500 text-sm font-semibold">Click to upload Secondary ID</p>
+                                                <p className="text-gray-400 text-xs mt-1">PhilSys, TIN, Passport, UMID • Max 5MB</p>
+                                            </div>
+                                        )}
+                                        <input type="file" accept="image/*,.pdf" className="hidden"
+                                            onChange={e => {
+                                                if (e.target.files[0]) setSecondaryIdName(e.target.files[0].name);
+                                            }} />
+                                    </label>
+                                </div>
+
+                                <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-xs">
+                                    ⚠️ For demo purposes — IDs are not uploaded to the server. In production, IDs will be stored securely and reviewed by our Account Management team in accordance with R.A. 10173.
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <button onClick={() => setStep(2)}
+                                        className="flex-1 py-3 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition font-semibold">
+                                        ← Back
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (!primaryIdName || !secondaryIdName) {
+                                                setError('Please upload both IDs to continue!');
+                                                return;
+                                            }
+                                            setError('');
+                                            handleSubmit();
+                                        }}
+                                        disabled={loading}
+                                        className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition disabled:opacity-60">
+                                        {loading ? 'Creating Account...' : 'Next →'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 4 — Email OTP Verification */}
+                        {step === 4 && (
                             <form onSubmit={handleVerifyOtp} className="space-y-4">
                                 <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl text-sm">
                                     📧 We sent a 6-digit verification code to:<br />
@@ -394,28 +474,21 @@ function Register() {
                                 </div>
                                 <div>
                                     <label className={labelClass}>Verification Code *</label>
-                                    <input
-                                        type="text"
-                                        value={otp}
+                                    <input type="text" value={otp}
                                         onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
-                                        required
-                                        maxLength={6}
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-xl text-center text-3xl font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition"
-                                        placeholder="000000"
-                                    />
-                                    <p className="text-xs text-gray-400 mt-1 text-center">
-                                        Code expires in 10 minutes
-                                    </p>
+                                        required maxLength={6}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-xl text-center text-3xl font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-red-500 transition"
+                                        placeholder="000000" />
+                                    <p className="text-xs text-gray-400 mt-1 text-center">Code expires in 10 minutes</p>
                                 </div>
                                 <button type="submit" disabled={loading || otp.length < 6}
                                     className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition disabled:opacity-60">
-                                    {loading ? 'Verifying...' : 'Verify Email'}
+                                    {loading ? 'Verifying...' : 'Verify & Complete Registration'}
                                 </button>
                                 <button type="button"
                                     onClick={async () => {
                                         try {
                                             await api.post('/auth/forgot-password', { email: registeredEmail });
-                                            setError('');
                                             alert('New OTP sent!');
                                         } catch (err) {
                                             setError('Failed to resend OTP!');
