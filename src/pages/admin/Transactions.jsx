@@ -287,27 +287,71 @@ function Transactions() {
                                         ))}
                                     </div>
 
-                                    {/* ID Documents — Mock */}
-                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                                        <p className="text-xs font-bold text-amber-600 uppercase mb-2">ID Documents</p>
-                                        <div className="space-y-2">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-lg">📄</span>
-                                                <div>
-                                                    <p className="text-xs font-semibold text-gray-700">Primary ID — Driver's License</p>
-                                                    <p className="text-xs text-gray-400">Submitted during registration (Demo)</p>
-                                                </div>
-                                                <span className="ml-auto text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded font-bold">Submitted</span>
+                                    {/* ID Documents */}
+                                    <div className="space-y-3">
+                                        <p className="text-xs font-bold text-gray-500 uppercase">ID Documents</p>
+                                        {selected.buyerPrimaryIdUrl || selected.buyerSecondaryIdUrl ? (
+                                            <div className="space-y-3">
+                                                {selected.buyerPrimaryIdUrl && (
+                                                    <div>
+                                                        <p className="text-xs font-semibold text-gray-600 mb-1">Primary ID — Driver's License</p>
+                                                        <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                                            <img
+                                                                src={`http://localhost:8080/api/files${selected.buyerPrimaryIdUrl.replace('/uploads', '')}`}
+                                                                alt="Primary ID"
+                                                                className="w-full h-32 object-contain bg-gray-50"
+                                                                onError={e => {
+                                                                    e.target.style.display = 'none';
+                                                                    e.target.nextSibling.style.display = 'flex';
+                                                                }}
+                                                            />
+                                                            <div className="hidden h-32 items-center justify-center bg-gray-50 text-center">
+                                                                <div>
+                                                                    <p className="text-3xl">📄</p>
+                                                                    <p className="text-xs text-gray-400">PDF Document</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <a href={`http://localhost:8080/api/files${selected.buyerPrimaryIdUrl.replace('/uploads', '')}`}
+                                                            target="_blank" rel="noopener noreferrer"
+                                                            className="text-xs text-blue-600 hover:underline mt-1 block">
+                                                            View Full Size ↗
+                                                        </a>
+                                                    </div>
+                                                )}
+                                                {selected.buyerSecondaryIdUrl && (
+                                                    <div>
+                                                        <p className="text-xs font-semibold text-gray-600 mb-1">Secondary ID</p>
+                                                        <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                                            <img
+                                                                src={`http://localhost:8080/api/files${selected.buyerSecondaryIdUrl.replace('/uploads', '')}`}
+                                                                alt="Secondary ID"
+                                                                className="w-full h-32 object-contain bg-gray-50"
+                                                                onError={e => {
+                                                                    e.target.style.display = 'none';
+                                                                    e.target.nextSibling.style.display = 'flex';
+                                                                }}
+                                                            />
+                                                            <div className="hidden h-32 items-center justify-center bg-gray-50 text-center">
+                                                                <div>
+                                                                    <p className="text-3xl">📄</p>
+                                                                    <p className="text-xs text-gray-400">PDF Document</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <a href={`http://localhost:8080/api/files${selected.buyerSecondaryIdUrl.replace('/uploads', '')}`}
+                                                            target="_blank" rel="noopener noreferrer"
+                                                            className="text-xs text-blue-600 hover:underline mt-1 block">
+                                                            View Full Size ↗
+                                                        </a>
+                                                    </div>
+                                                )}
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-lg">📄</span>
-                                                <div>
-                                                    <p className="text-xs font-semibold text-gray-700">Secondary ID — PhilSys / TIN</p>
-                                                    <p className="text-xs text-gray-400">Submitted during registration (Demo)</p>
-                                                </div>
-                                                <span className="ml-auto text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded font-bold">Submitted</span>
+                                        ) : (
+                                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
+                                                <p className="text-xs text-amber-700">⚠️ No IDs uploaded yet</p>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                 </div>
                             )}

@@ -1,807 +1,553 @@
-import { useState, useEffect } from "react";
-import { Plus, Pencil, Trash2, X, Check } from "lucide-react";
-import api from "../../api/axios";
-import usePageTitle from "../../hooks/usePageTitle";
+import { useState, useEffect } from 'react';
+import { Plus, Pencil, Trash2, X, Check } from 'lucide-react';
+import api from '../../api/axios';
+import usePageTitle from '../../hooks/usePageTitle';
 
-const CONDITIONS = ["BRAND_NEW", "PRE_OWNED", "CERTIFIED_PRE_OWNED"];
-const FUEL_TYPES = ["Gasoline", "Diesel", "Electric", "Hybrid"];
-const TRANSMISSIONS = ["Automatic", "Manual"];
-const IMG_BASE = "http://localhost:8080/api/files";
+function Register() {
+    usePageTitle('Register');
+    const [step, setStep] = useState(1);
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [registeredEmail, setRegisteredEmail] = useState('');
+    const [otp, setOtp] = useState('');
+    const [cities, setCities] = useState([]);
+    const [barangays, setBarangays] = useState([]);
+    const [primaryIdName, setPrimaryIdName] = useState('');
+    const [secondaryIdName, setSecondaryIdName] = useState('');
+    const [primaryIdFile, setPrimaryIdFile] = useState(null);
+    const [secondaryIdFile, setSecondaryIdFile] = useState(null);
 
-function Vehicles() {
-  usePageTitle("Vehicles");
-  const [vehicles, setVehicles] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editVehicle, setEditVehicle] = useState(null);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [uploadingImages, setUploadingImages] = useState(false);
-  const [uploadingVideo, setUploadingVideo] = useState(false);
-
-  const emptyForm = {
-    categoryId: "",
-    brand: "",
-    model: "",
-    year: "",
-    price: "",
-    color: "",
-    fuelType: "",
-    transmission: "",
-    bodyType: "",
-    mileage: "",
-    description: "",
-    engineNumber: "",
-    chassisNumber: "",
-    plateNumber: "",
-    warrantyYears: "",
-    warrantyDetails: "",
-    condition: "",
-    imageUrls: [],
-    videoUrls: [],
-    quantity: 1,
-  };
-  const [form, setForm] = useState(emptyForm);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    try {
-      const [vRes, cRes] = await Promise.all([
-        api.get("/admin/vehicles"),
-        api.get("/admin/categories"),
-      ]);
-      setVehicles(vRes.data.data || []);
-      setCategories(cRes.data.data || []);
-    } catch (err) {
-      setError("Failed to fetch data!");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handle = (e) =>
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-
-  const openAdd = () => {
-    setForm(emptyForm);
-    setEditVehicle(null);
-    setError("");
-    setShowModal(true);
-  };
-
-  const openEdit = (v) => {
-    setForm({
-      categoryId: v.categoryId || "",
-      brand: v.brand || "",
-      model: v.model || "",
-      year: v.year || "",
-      price: v.price || "",
-      color: v.color || "",
-      fuelType: v.fuelType || "",
-      transmission: v.transmission || "",
-      bodyType: v.bodyType || "",
-      mileage: v.mileage || "",
-      description: v.description || "",
-      engineNumber: v.engineNumber || "",
-      chassisNumber: v.chassisNumber || "",
-      plateNumber: v.plateNumber || "",
-      warrantyYears: v.warrantyYears || "",
-      warrantyDetails: v.warrantyDetails || "",
-      condition: v.condition || "",
-      imageUrls: v.imageUrls || [],
-      videoUrls: v.videoUrls || [],
-      quantity: v.quantity || 1,
+    const [form, setForm] = useState({
+        firstName: '', lastName: '', middleName: '', suffix: '',
+        email: '', phone: '',
+        password: '', confirmPassword: '',
+        cityName: '', barangayName: '', streetNo: '',
+        agreedToTerms: false,
     });
-    setEditVehicle(v);
-    setError("");
-    setShowModal(true);
-  };
 
-  const handleAddImages = async (e) => {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
-    const currentUrls = form.imageUrls || [];
-    const total = currentUrls.length + files.length;
-    if (total > 8) {
-      setError(
-        `Max 8 images! You have ${currentUrls.length}, adding ${files.length} exceeds limit.`,
-      );
-      return;
-    }
-    setUploadingImages(true);
-    try {
-      const formData = new FormData();
-      files.forEach((f) => formData.append("files", f));
-      const res = await api.post("/files/upload/images", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      setForm((prev) => ({
-        ...prev,
-        imageUrls: [...(prev.imageUrls || []), ...res.data.data],
-      }));
-    } catch (err) {
-      setError("Failed to upload images!");
-    } finally {
-      setUploadingImages(false);
-    }
-  };
+    const { login } = useAuth();
+    const navigate = useNavigate();
+    const handle = (e) => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
-  const removeImage = (index) => {
-    setForm((prev) => ({
-      ...prev,
-      imageUrls: (prev.imageUrls || []).filter((_, i) => i !== index),
-    }));
-  };
+    useEffect(() => {
+        api.get('/locations/cities').then(res => setCities(res.data.data || []));
+    }, []);
 
-  const handleAddVideo = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const currentVideos = form.videoUrls || [];
-    if (currentVideos.length >= 3) {
-      setError("Maximum 3 videos allowed!");
-      return;
-    }
-    setUploadingVideo(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await api.post("/files/upload/video", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      setForm((prev) => ({
-        ...prev,
-        videoUrls: [...(prev.videoUrls || []), res.data.data],
-      }));
-    } catch (err) {
-      setError("Failed to upload video!");
-    } finally {
-      setUploadingVideo(false);
-    }
-  };
+    const handleCityChange = async (cityId) => {
+        const city = cities.find(c => c.id === parseInt(cityId));
+        setForm(prev => ({ ...prev, cityName: city?.name || '', barangayName: '' }));
+        if (cityId) {
+            const res = await api.get(`/locations/barangays/${cityId}`);
+            setBarangays(res.data.data || []);
+        }
+    };
 
-  const removeVideo = (index) => {
-    setForm((prev) => ({
-      ...prev,
-      videoUrls: (prev.videoUrls || []).filter((_, i) => i !== index),
-    }));
-  };
+    const pwChecks = {
+        length: form.password.length >= 8,
+        upper: /[A-Z]/.test(form.password),
+        number: /[0-9]/.test(form.password),
+        special: /[!@#$%^&*]/.test(form.password),
+    };
+    const pwStrength = Object.values(pwChecks).filter(Boolean).length;
+    const pwStrengthLabel = ['', 'Weak', 'Fair', 'Good', 'Strong'][pwStrength];
+    const pwStrengthColor = ['', 'bg-red-500', 'bg-orange-400', 'bg-yellow-400', 'bg-green-500'][pwStrength];
 
-  const handleSubmit = async () => {
-    if (!form.brand || !form.model || !form.year || !form.price) {
-      setError("Brand, Model, Year, and Price are required!");
-      return;
-    }
-    if (!form.categoryId) {
-      setError("Please select a category!");
-      return;
-    }
-    if (!form.condition) {
-      setError("Please select vehicle condition!");
-      return;
-    }
-    if (!form.imageUrls || form.imageUrls.length === 0) {
-      setError("Please upload at least 1 photo!");
-      return;
-    }
-    try {
-      const payload = { ...form, quantity: parseInt(form.quantity) || 1 };
-      if (editVehicle) {
-        await api.put(`/admin/vehicles/${editVehicle.id}`, payload);
-        setSuccess("Vehicle updated!");
-      } else {
-        await api.post("/admin/vehicles", payload);
-        setSuccess("Vehicle added!");
-      }
-      setShowModal(false);
-      fetchData();
-      setTimeout(() => setSuccess(""), 3000);
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to save vehicle!");
-    }
-  };
+    const handleStep1Next = () => {
+        if (!form.firstName || !form.lastName || !form.email || !form.phone) {
+            setError('Please fill all required fields!');
+            return;
+        }
+        setError('');
+        setStep(2);
+    };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete this vehicle?")) return;
-    try {
-      await api.delete(`/admin/vehicles/${id}`);
-      setSuccess("Vehicle deleted!");
-      fetchData();
-      setTimeout(() => setSuccess(""), 3000);
-    } catch (err) {
-      setError("Failed to delete!");
-    }
-  };
+    const handleStep2Next = () => {
+        if (!form.password || !form.confirmPassword) {
+            setError('Please fill all required fields!');
+            return;
+        }
+        if (form.password !== form.confirmPassword) {
+            setError('Passwords do not match!');
+            return;
+        }
+        if (form.password.length < 8) {
+            setError('Password must be at least 8 characters!');
+            return;
+        }
+        if (!form.agreedToTerms) {
+            setError('You must agree to the Terms and Conditions!');
+            return;
+        }
+        setError('');
+        setStep(3);
+    };
 
-  const getImageUrl = (url) => {
-    if (!url) return null;
-    return `${IMG_BASE}${url.replace("/uploads", "")}`;
-  };
+    const handleStep3Next = () => {
+        if (!primaryIdFile || !secondaryIdFile) {
+            setError('Please upload both IDs to continue!');
+            return;
+        }
+        setError('');
+        handleSubmit();
+    };
 
-  const statusColor = (status) =>
-    ({
-      AVAILABLE: "bg-green-100 text-green-700",
-      RESERVED: "bg-yellow-100 text-yellow-700",
-      SOLD: "bg-gray-100 text-gray-600",
-    })[status] || "bg-gray-100 text-gray-600";
+    const handleSubmit = async () => {
+        setLoading(true);
+        try {
+            await api.post('/auth/register', {
+                firstName: form.firstName,
+                lastName: form.lastName,
+                middleName: form.middleName,
+                suffix: form.suffix,
+                email: form.email,
+                phone: form.phone,
+                password: form.password,
+                cityName: form.cityName,
+                barangayName: form.barangayName,
+                streetNo: form.streetNo,
+            });
+            setRegisteredEmail(form.email);
+            setStep(4);
+        } catch (err) {
+            setError(err.response?.data?.message || 'Registration failed!');
+            setStep(3);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  const inputClass =
-    "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition";
-  const labelClass = "block text-xs font-semibold text-gray-600 mb-1";
+    const handleVerifyOtp = async (e) => {
+        e.preventDefault();
+        setError('');
+        setLoading(true);
+        try {
+            const res = await api.post('/auth/verify-registration', {
+                email: registeredEmail,
+                otp,
+            });
+            const data = res.data.data;
 
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-gray-800">Vehicle Inventory</h2>
-          <p className="text-sm text-gray-400">
-            {vehicles.length} vehicles total
-          </p>
-        </div>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold text-sm transition"
-        >
-          <Plus size={16} /> Add Vehicle
-        </button>
-      </div>
+            // Upload IDs after verification
+            if (primaryIdFile) {
+                try {
+                    const fd1 = new FormData();
+                    fd1.append('file', primaryIdFile);
+                    await api.post('/buyer/profile/id/primary', fd1, {
+                        headers: {
+                            'Content-Type': 'multipart/form-data',
+                            'Authorization': `Bearer ${data.token}`
+                        }
+                    });
+                } catch (e) {
+                    console.log('Primary ID upload failed:', e);
+                }
+            }
+            if (secondaryIdFile) {
+                try {
+                    const fd2 = new FormData();
+                    fd2.append('file', secondaryIdFile);
+                    await api.post('/buyer/profile/id/secondary', fd2, {
+                        headers: {
+                            'Content-Type': 'multipart/form-data',
+                            'Authorization': `Bearer ${data.token}`
+                        }
+                    });
+                } catch (e) {
+                    console.log('Secondary ID upload failed:', e);
+                }
+            }
 
-      {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
-          <Check size={16} /> {success}
-        </div>
-      )}
-      {error && !showModal && (
-        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">
-          ⚠️ {error}
-        </div>
-      )}
+            login({
+                userId: data.userId,
+                email: data.email,
+                fullName: data.fullName,
+                role: data.role,
+                privileges: data.privileges,
+            }, data.token);
+            navigate('/buyer/dashboard');
+        } catch (err) {
+            setError(err.response?.data?.message || 'Invalid OTP!');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                {[
-                  "#",
-                  "Photo",
-                  "Brand & Model",
-                  "Category",
-                  "Price",
-                  "Qty",
-                  "Status",
-                  "Actions",
-                ].map((h) => (
-                  <th
-                    key={h}
-                    className="text-left py-3 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="text-center py-12 text-gray-400 text-sm"
-                  >
-                    Loading...
-                  </td>
-                </tr>
-              ) : vehicles.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="text-center py-12 text-gray-400 text-sm"
-                  >
-                    No vehicles yet!
-                  </td>
-                </tr>
-              ) : (
-                vehicles.map((v) => (
-                  <tr
-                    key={v.id}
-                    className="border-b border-gray-50 hover:bg-gray-50 transition"
-                  >
-                    <td className="py-3 px-4 text-gray-400 font-mono text-xs">
-                      #{v.id}
-                    </td>
-                    <td className="py-3 px-4">
-                      {v.imageUrls?.length > 0 ? (
-                        <img
-                          src={getImageUrl(v.imageUrls[0])}
-                          alt=""
-                          className="w-14 h-10 object-cover rounded-lg"
-                        />
-                      ) : (
-                        <div className="w-14 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-300 text-xs">
-                          No img
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4">
-                      <p className="font-semibold text-gray-800">
-                        {v.brand} {v.model}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        {v.year} • {v.color}
-                      </p>
-                    </td>
-                    <td className="py-3 px-4 text-gray-600 text-sm">
-                      {v.categoryName || "—"}
-                    </td>
-                    <td className="py-3 px-4 font-bold text-gray-800">
-                      ₱{Number(v.price).toLocaleString()}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-bold ${(v.quantity || 0) > 0 ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-600"}`}
-                      >
-                        {v.quantity || 0} units
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-bold ${statusColor(v.status)}`}
-                      >
-                        {v.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openEdit(v)}
-                          className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(v.id)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+    const inputClass = "w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition";
+    const labelClass = "block text-sm font-semibold text-gray-700 mb-1.5";
 
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
-              <h3 className="text-lg font-bold text-gray-800">
-                {editVehicle ? "Edit Vehicle" : "Add New Vehicle"}
-              </h3>
-              <button
-                onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition"
-              >
-                <X size={18} />
-              </button>
+    const steps = [
+        { step: 1, label: 'Personal Info' },
+        { step: 2, label: 'Password & Terms' },
+        { step: 3, label: 'Address & IDs' },
+        { step: 4, label: 'Verify Email' },
+    ];
+
+    return (
+        <div className="min-h-screen flex">
+            {/* Left Panel */}
+            <div className="hidden lg:flex lg:w-1/2 bg-red-600 flex-col items-center justify-center p-12 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-red-700 to-red-500 opacity-90" />
+                <div className="relative z-10 text-center">
+                    <img src="/logo.png" alt="Carpeso"
+                        className="w-32 h-32 rounded-full mx-auto mb-8 object-cover border-4 border-white shadow-2xl" />
+                    <h1 className="text-4xl font-bold text-white mb-4">Join Carpeso</h1>
+                    <p className="text-red-100 text-lg max-w-sm italic">"Drive the deal. Own the wheel."</p>
+                    <div className="mt-8 text-left bg-red-700 bg-opacity-50 rounded-2xl p-6 space-y-3">
+                        {steps.map(s => (
+                            <div key={s.step} className={`flex items-center gap-3 ${step >= s.step ? 'text-white' : 'text-red-300'}`}>
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${step > s.step ? 'bg-green-500' : step === s.step ? 'bg-white text-red-600' : 'bg-red-500'}`}>
+                                    {step > s.step ? '✓' : s.step}
+                                </div>
+                                <span className="text-sm font-semibold">{s.label}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             </div>
 
-            <div className="p-6 space-y-4">
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
-                  ⚠️ {error}
-                </div>
-              )}
+            {/* Right Panel */}
+            <div className="w-full lg:w-1/2 flex items-center justify-center bg-gray-50 p-8 overflow-y-auto">
+                <div className="w-full max-w-md">
+                    <div className="flex justify-center mb-6 lg:hidden">
+                        <img src="/logo.png" alt="Carpeso"
+                            className="w-20 h-20 rounded-full object-cover border-4 border-red-600 shadow-lg" />
+                    </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>Category *</label>
-                  <select
-                    name="categoryId"
-                    value={form.categoryId}
-                    onChange={handle}
-                    className={inputClass}
-                  >
-                    <option value="">Select Category</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>Condition *</label>
-                  <select
-                    name="condition"
-                    value={form.condition}
-                    onChange={handle}
-                    className={inputClass}
-                  >
-                    <option value="">Select Condition</option>
-                    {CONDITIONS.map((c) => (
-                      <option key={c} value={c}>
-                        {c.replace(/_/g, " ")}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>Brand *</label>
-                  <input
-                    name="brand"
-                    value={form.brand}
-                    onChange={handle}
-                    className={inputClass}
-                    placeholder="Toyota"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Model *</label>
-                  <input
-                    name="model"
-                    value={form.model}
-                    onChange={handle}
-                    className={inputClass}
-                    placeholder="Vios"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Year *</label>
-                  <input
-                    name="year"
-                    type="number"
-                    value={form.year}
-                    onChange={handle}
-                    className={inputClass}
-                    placeholder="2024"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Price *</label>
-                  <input
-                    name="price"
-                    type="number"
-                    value={form.price}
-                    onChange={handle}
-                    className={inputClass}
-                    placeholder="750000"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Color</label>
-                  <input
-                    name="color"
-                    value={form.color}
-                    onChange={handle}
-                    className={inputClass}
-                    placeholder="White"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Fuel Type</label>
-                  <select
-                    name="fuelType"
-                    value={form.fuelType}
-                    onChange={handle}
-                    className={inputClass}
-                  >
-                    <option value="">Select</option>
-                    {FUEL_TYPES.map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>Transmission</label>
-                  <select
-                    name="transmission"
-                    value={form.transmission}
-                    onChange={handle}
-                    className={inputClass}
-                  >
-                    <option value="">Select</option>
-                    {TRANSMISSIONS.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>Body Type</label>
-                  <input
-                    name="bodyType"
-                    value={form.bodyType}
-                    onChange={handle}
-                    className={inputClass}
-                    placeholder="Sedan"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Mileage (km)</label>
-                  <input
-                    name="mileage"
-                    type="number"
-                    value={form.mileage}
-                    onChange={handle}
-                    className={inputClass}
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Warranty Years</label>
-                  <input
-                    name="warrantyYears"
-                    type="number"
-                    value={form.warrantyYears}
-                    onChange={handle}
-                    className={inputClass}
-                    placeholder="2"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Engine Number</label>
-                  <input
-                    name="engineNumber"
-                    value={form.engineNumber}
-                    onChange={handle}
-                    className={inputClass}
-                    placeholder="ENG-001"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Chassis Number</label>
-                  <input
-                    name="chassisNumber"
-                    value={form.chassisNumber}
-                    onChange={handle}
-                    className={inputClass}
-                    placeholder="CHS-001"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Plate Number</label>
-                  <input
-                    name="plateNumber"
-                    value={form.plateNumber}
-                    onChange={handle}
-                    className={inputClass}
-                    placeholder="ABC 1234"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Quantity (Units) *</label>
-                  <input
-                    name="quantity"
-                    type="number"
-                    min="1"
-                    value={form.quantity}
-                    onChange={handle}
-                    className={inputClass}
-                    placeholder="1"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    How many units available
-                  </p>
-                </div>
-              </div>
+                    {/* Step Indicator */}
+                    <div className="flex items-center justify-center mb-6 gap-2">
+                        {[1, 2, 3, 4].map((s, i) => (
+                            <div key={s} className="flex items-center gap-2">
+                                <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold transition ${step > s ? 'bg-green-500 text-white' : step === s ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                                    {step > s ? '✓' : s}
+                                </div>
+                                {i < 3 && <div className={`h-1 w-6 rounded transition ${step > s ? 'bg-green-500' : 'bg-gray-200'}`} />}
+                            </div>
+                        ))}
+                    </div>
 
-              {/* Status Display — auto based on quantity */}
-              {editVehicle && (
-                <div className="col-span-2">
-                  <label className={labelClass}>Current Status</label>
-                  <div
-                    className={`px-4 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-2 ${
-                      form.quantity > 0
-                        ? "bg-green-100 text-green-700"
-                        : "bg-gray-100 text-gray-600"
-                    }`}
-                  >
-                    <div
-                      className={`w-2 h-2 rounded-full ${form.quantity > 0 ? "bg-green-500" : "bg-gray-400"}`}
-                    />
-                    {form.quantity > 0 ? "Available" : "Sold — Out of Stock"}
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Status updates automatically based on quantity
-                  </p>
-                </div>
-              )}
+                    <div className="bg-white rounded-2xl shadow-lg p-8">
+                        <div className="flex items-center justify-between mb-5">
+                            <h2 className="text-2xl font-bold text-gray-900">
+                                {step === 1 ? 'Personal Info' :
+                                 step === 2 ? 'Password & Terms' :
+                                 step === 3 ? 'Address & IDs' :
+                                 'Verify Email'}
+                            </h2>
+                            <span className="text-xs text-gray-400">Step {step} of 4</span>
+                        </div>
 
-              <div>
-                <label className={labelClass}>Description</label>
-                <textarea
-                  name="description"
-                  value={form.description}
-                  onChange={handle}
-                  className={inputClass}
-                  rows={3}
-                  placeholder="Vehicle description..."
-                />
-              </div>
-
-              <div>
-                <label className={labelClass}>Warranty Details</label>
-                <textarea
-                  name="warrantyDetails"
-                  value={form.warrantyDetails}
-                  onChange={handle}
-                  className={inputClass}
-                  rows={2}
-                  placeholder="Warranty coverage details..."
-                />
-              </div>
-
-              {/* Images */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className={labelClass}>
-                    Vehicle Images ({(form.imageUrls || []).length}/8) *
-                    {uploadingImages && (
-                      <span className="text-blue-500 ml-2 font-normal">
-                        Uploading...
-                      </span>
-                    )}
-                  </label>
-                  {(form.imageUrls || []).length < 8 && (
-                    <label className="flex items-center gap-1 px-3 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-bold cursor-pointer hover:bg-red-100 transition">
-                      <Plus size={12} /> Add Photos
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={handleAddImages}
-                        className="hidden"
-                      />
-                    </label>
-                  )}
-                </div>
-                <p className="text-xs text-gray-400 mb-2">
-                  Max 8 images • JPG, PNG • Max 10MB each • First image = cover
-                  photo
-                </p>
-                {(form.imageUrls || []).length > 0 ? (
-                  <div className="grid grid-cols-4 gap-2">
-                    {(form.imageUrls || []).map((url, i) => (
-                      <div key={i} className="relative group">
-                        <img
-                          src={getImageUrl(url)}
-                          alt=""
-                          className="w-full h-20 object-cover rounded-lg border border-gray-200"
-                        />
-                        {i === 0 && (
-                          <span className="absolute top-1 left-1 bg-red-600 text-white text-xs px-1.5 py-0.5 rounded font-bold">
-                            Cover
-                          </span>
+                        {error && (
+                            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-5 text-sm">
+                                ⚠️ {error}
+                            </div>
                         )}
-                        <button
-                          onClick={() => removeImage(i)}
-                          className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition"
-                        >
-                          <X size={10} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <label className="block border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-red-400 transition">
-                    <p className="text-gray-400 text-sm">
-                      Click to upload images
-                    </p>
-                    <p className="text-gray-300 text-xs mt-1">
-                      Max 8 images • First image = cover photo
-                    </p>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleAddImages}
-                      className="hidden"
-                    />
-                  </label>
-                )}
-              </div>
 
-              {/* Videos */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className={labelClass}>
-                    Vehicle Videos ({(form.videoUrls || []).length}/3)
-                    {uploadingVideo && (
-                      <span className="text-blue-500 ml-2 font-normal">
-                        Uploading...
-                      </span>
-                    )}
-                  </label>
-                  {(form.videoUrls || []).length < 3 && (
-                    <label className="flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold cursor-pointer hover:bg-gray-200 transition">
-                      <Plus size={12} /> Add Video
-                      <input
-                        type="file"
-                        accept="video/*"
-                        onChange={handleAddVideo}
-                        className="hidden"
-                      />
-                    </label>
-                  )}
+                        {/* Step 1 — Personal Info */}
+                        {step === 1 && (
+                            <div className="space-y-4">
+                                <div>
+                                    <label className={labelClass}>First Name *</label>
+                                    <input name="firstName" value={form.firstName} onChange={handle}
+                                        className={`${inputClass} ${form.firstName ? 'border-green-400' : ''}`}
+                                        placeholder="Juan" />
+                                </div>
+                                <div>
+                                    <label className={labelClass}>Last Name *</label>
+                                    <input name="lastName" value={form.lastName} onChange={handle}
+                                        className={`${inputClass} ${form.lastName ? 'border-green-400' : ''}`}
+                                        placeholder="Dela Cruz" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className={labelClass}>Middle Name</label>
+                                        <input name="middleName" value={form.middleName} onChange={handle}
+                                            className={inputClass} placeholder="Santos" />
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>Suffix</label>
+                                        <select name="suffix" value={form.suffix} onChange={handle} className={inputClass}>
+                                            <option value="">None</option>
+                                            <option value="Jr.">Jr.</option>
+                                            <option value="Sr.">Sr.</option>
+                                            <option value="II">II</option>
+                                            <option value="III">III</option>
+                                            <option value="IV">IV</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className={labelClass}>Email Address *</label>
+                                    <input name="email" type="email" value={form.email} onChange={handle}
+                                        className={`${inputClass} ${form.email ? 'border-green-400' : ''}`}
+                                        placeholder="juan@gmail.com" />
+                                    <p className="text-xs text-gray-400 mt-1">📧 Verification code will be sent here</p>
+                                </div>
+                                <div>
+                                    <label className={labelClass}>Phone Number *</label>
+                                    <input name="phone" value={form.phone}
+                                        onChange={e => setForm(prev => ({ ...prev, phone: e.target.value.replace(/\D/g, '') }))}
+                                        className={`${inputClass} ${form.phone ? 'border-green-400' : ''}`}
+                                        placeholder="09171234567" maxLength={11} />
+                                </div>
+                                <button onClick={handleStep1Next}
+                                    className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition mt-2">
+                                    Next →
+                                </button>
+                                <p className="text-center text-sm text-gray-500">
+                                    Already have an account?{' '}
+                                    <Link to="/login" className="text-red-600 font-bold hover:underline">Sign in</Link>
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Step 2 — Password & Terms */}
+                        {step === 2 && (
+                            <div className="space-y-4">
+                                <div>
+                                    <label className={labelClass}>Password *</label>
+                                    <div className="relative">
+                                        <input name="password" type={showPassword ? 'text' : 'password'}
+                                            value={form.password} onChange={handle}
+                                            className={`${inputClass} pr-11 ${form.password ? 'border-green-400' : ''}`}
+                                            placeholder="Min. 8 characters" />
+                                        <button type="button" onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-3 top-2.5 text-gray-400">
+                                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
+                                    {form.password && (
+                                        <div className="mt-2">
+                                            <div className="flex gap-1 mb-1">
+                                                {[1,2,3,4].map(i => (
+                                                    <div key={i} className={`h-1.5 flex-1 rounded-full ${i <= pwStrength ? pwStrengthColor : 'bg-gray-200'}`} />
+                                                ))}
+                                            </div>
+                                            <p className={`text-xs font-semibold ${pwStrength <= 1 ? 'text-red-500' : pwStrength === 2 ? 'text-orange-400' : pwStrength === 3 ? 'text-yellow-500' : 'text-green-500'}`}>
+                                                Password Strength: {pwStrengthLabel}
+                                            </p>
+                                            <div className="grid grid-cols-2 gap-1 mt-1">
+                                                {[
+                                                    { check: pwChecks.length, label: 'Min. 8 characters' },
+                                                    { check: pwChecks.upper, label: 'Uppercase letter' },
+                                                    { check: pwChecks.number, label: 'Number' },
+                                                    { check: pwChecks.special, label: 'Special character' },
+                                                ].map(({ check, label }) => (
+                                                    <div key={label} className={`flex items-center gap-1 text-xs ${check ? 'text-green-600' : 'text-gray-400'}`}>
+                                                        {check ? <CheckCircle size={12} /> : <Circle size={12} />}
+                                                        <span>{label}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className={labelClass}>Confirm Password *</label>
+                                    <div className="relative">
+                                        <input name="confirmPassword" type={showConfirm ? 'text' : 'password'}
+                                            value={form.confirmPassword} onChange={handle}
+                                            className={`${inputClass} pr-11 ${form.confirmPassword && form.confirmPassword === form.password ? 'border-green-400' : form.confirmPassword ? 'border-red-400' : ''}`}
+                                            placeholder="Re-enter password" />
+                                        <button type="button" onClick={() => setShowConfirm(!showConfirm)}
+                                            className="absolute right-3 top-2.5 text-gray-400">
+                                            {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
+                                    {form.confirmPassword && (
+                                        <p className={`text-xs mt-1 font-semibold ${form.confirmPassword === form.password ? 'text-green-500' : 'text-red-500'}`}>
+                                            {form.confirmPassword === form.password ? '✓ Passwords match' : '✗ Do not match'}
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                                    <label className="flex items-start gap-3 cursor-pointer">
+                                        <input type="checkbox" checked={form.agreedToTerms}
+                                            onChange={e => setForm(prev => ({ ...prev, agreedToTerms: e.target.checked }))}
+                                            className="w-4 h-4 mt-0.5 accent-red-600 flex-shrink-0" />
+                                        <span className="text-xs text-gray-600 leading-relaxed">
+                                            I have read and agree to the{' '}
+                                            <a href="/terms" target="_blank" className="text-red-600 font-bold hover:underline">Terms and Conditions</a>
+                                            {' '}and{' '}
+                                            <a href="/privacy" target="_blank" className="text-red-600 font-bold hover:underline">Privacy Policy</a>
+                                            {' '}of Carpeso. I consent to the collection and processing of my personal data in accordance with R.A. 10173.
+                                        </span>
+                                    </label>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button onClick={() => { setStep(1); setError(''); }}
+                                        className="flex-1 py-3 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition font-semibold">
+                                        ← Back
+                                    </button>
+                                    <button onClick={handleStep2Next}
+                                        className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition">
+                                        Next →
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 3 — Address & IDs */}
+                        {step === 3 && (
+                            <div className="space-y-4">
+                                {/* Address */}
+                                <div>
+                                    <p className="text-sm font-bold text-gray-700 mb-3">
+                                        📍 Delivery Address
+                                        <span className="text-xs text-gray-400 font-normal ml-1">(will be saved as Address 1)</span>
+                                    </p>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className={labelClass}>City / Municipality</label>
+                                            <select onChange={e => handleCityChange(e.target.value)}
+                                                className={`${inputClass} ${form.cityName ? 'border-green-400' : ''}`}>
+                                                <option value="">Select City</option>
+                                                {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className={labelClass}>Barangay</label>
+                                            <select name="barangayName" value={form.barangayName}
+                                                onChange={handle}
+                                                disabled={!form.cityName}
+                                                className={`${inputClass} ${form.barangayName ? 'border-green-400' : ''} disabled:bg-gray-50 disabled:text-gray-400`}>
+                                                <option value="">Select Barangay</option>
+                                                {barangays.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className={labelClass}>Street / House No.</label>
+                                            <input name="streetNo" value={form.streetNo} onChange={handle}
+                                                className={inputClass} placeholder="123 Main Street (optional)" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <hr className="border-gray-100" />
+
+                                {/* ID Upload */}
+                                <div>
+                                    <p className="text-sm font-bold text-gray-700 mb-3">
+                                        🪪 Government IDs
+                                        <span className="text-xs text-red-500 font-normal ml-1">* Required</span>
+                                    </p>
+
+                                    {/* Primary ID */}
+                                    <div className="mb-3">
+                                        <label className={labelClass}>
+                                            Primary ID — Driver's License *
+                                            {primaryIdName && <span className="text-green-500 ml-2">✓</span>}
+                                        </label>
+                                        <label className={`block border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition ${primaryIdName ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-red-400'}`}>
+                                            {primaryIdName ? (
+                                                <div>
+                                                    <p className="text-green-600 font-semibold text-sm">✅ {primaryIdName}</p>
+                                                    <p className="text-xs text-gray-400 mt-1">Click to change</p>
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <Upload size={20} className="mx-auto mb-1 text-gray-400" />
+                                                    <p className="text-gray-500 text-sm font-semibold">Upload Driver's License</p>
+                                                    <p className="text-gray-400 text-xs mt-0.5">JPG, PNG, PDF • Max 5MB</p>
+                                                </div>
+                                            )}
+                                            <input type="file" accept="image/*,.pdf" className="hidden"
+                                                onChange={e => {
+                                                    if (e.target.files[0]) {
+                                                        setPrimaryIdName(e.target.files[0].name);
+                                                        setPrimaryIdFile(e.target.files[0]);
+                                                    }
+                                                }} />
+                                        </label>
+                                    </div>
+
+                                    {/* Secondary ID */}
+                                    <div>
+                                        <label className={labelClass}>
+                                            Secondary ID — PhilSys / TIN / Passport *
+                                            {secondaryIdName && <span className="text-green-500 ml-2">✓</span>}
+                                        </label>
+                                        <label className={`block border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition ${secondaryIdName ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-red-400'}`}>
+                                            {secondaryIdName ? (
+                                                <div>
+                                                    <p className="text-green-600 font-semibold text-sm">✅ {secondaryIdName}</p>
+                                                    <p className="text-xs text-gray-400 mt-1">Click to change</p>
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <Upload size={20} className="mx-auto mb-1 text-gray-400" />
+                                                    <p className="text-gray-500 text-sm font-semibold">Upload Secondary ID</p>
+                                                    <p className="text-gray-400 text-xs mt-0.5">PhilSys, TIN, Passport, UMID • Max 5MB</p>
+                                                </div>
+                                            )}
+                                            <input type="file" accept="image/*,.pdf" className="hidden"
+                                                onChange={e => {
+                                                    if (e.target.files[0]) {
+                                                        setSecondaryIdName(e.target.files[0].name);
+                                                        setSecondaryIdFile(e.target.files[0]);
+                                                    }
+                                                }} />
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-xs">
+                                    🔒 Your IDs are stored securely and will only be reviewed by authorized Carpeso staff in compliance with R.A. 10173.
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <button onClick={() => { setStep(2); setError(''); }}
+                                        className="flex-1 py-3 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition font-semibold">
+                                        ← Back
+                                    </button>
+                                    <button onClick={handleStep3Next} disabled={loading}
+                                        className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition disabled:opacity-60">
+                                        {loading ? 'Creating Account...' : 'Next →'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 4 — OTP Verification */}
+                        {step === 4 && (
+                            <form onSubmit={handleVerifyOtp} className="space-y-4">
+                                <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl text-sm">
+                                    📧 We sent a 6-digit verification code to:<br />
+                                    <strong>{registeredEmail}</strong>
+                                </div>
+                                <div>
+                                    <label className={labelClass}>Verification Code *</label>
+                                    <input type="text" value={otp}
+                                        onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
+                                        required maxLength={6}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-xl text-center text-3xl font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-red-500 transition"
+                                        placeholder="000000" />
+                                    <p className="text-xs text-gray-400 mt-1 text-center">Code expires in 10 minutes</p>
+                                </div>
+                                <button type="submit" disabled={loading || otp.length < 6}
+                                    className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition disabled:opacity-60">
+                                    {loading ? 'Verifying...' : 'Verify & Complete Registration'}
+                                </button>
+                                <button type="button"
+                                    onClick={async () => {
+                                        try {
+                                            await api.post('/auth/forgot-password', { email: registeredEmail });
+                                            alert('New OTP sent!');
+                                        } catch {
+                                            setError('Failed to resend OTP!');
+                                        }
+                                    }}
+                                    className="w-full py-2 text-sm text-red-600 hover:underline">
+                                    Didn't receive the code? Resend
+                                </button>
+                            </form>
+                        )}
+                    </div>
                 </div>
-                <p className="text-xs text-gray-400 mb-2">
-                  MP4 • Max 50MB each • Max 3 minutes • Up to 3 videos
-                </p>
-                {(form.videoUrls || []).length > 0 ? (
-                  <div className="space-y-2">
-                    {(form.videoUrls || []).map((url, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-2 bg-gray-50 rounded-lg p-2"
-                      >
-                        <video
-                          src={`${IMG_BASE}${url.replace("/uploads", "")}`}
-                          className="w-24 h-16 object-cover rounded"
-                        />
-                        <div className="flex-1">
-                          <p className="text-xs text-gray-600 font-semibold">
-                            Video {i + 1}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => removeVideo(i)}
-                          className="p-1 text-red-500 hover:bg-red-50 rounded transition"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <label className="block border-2 border-dashed border-gray-300 rounded-xl p-4 text-center cursor-pointer hover:border-red-400 transition">
-                    <p className="text-gray-400 text-sm">
-                      Click to upload video
-                    </p>
-                    <p className="text-gray-300 text-xs mt-1">
-                      MP4 • Max 50MB • Max 3 minutes
-                    </p>
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={handleAddVideo}
-                      className="hidden"
-                    />
-                  </label>
-                )}
-              </div>
             </div>
-
-            <div className="flex gap-3 p-6 border-t border-gray-100 sticky bottom-0 bg-white">
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex-1 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition font-semibold"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmit}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition"
-              >
-                {editVehicle ? "Update Vehicle" : "Add Vehicle"}
-              </button>
-            </div>
-          </div>
         </div>
-      )}
-    </div>
-  );
+    );
 }
 
-export default Vehicles;
+export default Register;
