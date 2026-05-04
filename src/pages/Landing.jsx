@@ -1,10 +1,11 @@
+import { IMG_BASE } from '../api/config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Car, Shield, Star, ArrowRight, Menu, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../api/axios';
 import usePageTitle from '../hooks/usePageTitle';
 
-const IMG_BASE = 'http://localhost:8080/api/files';
+
 
 function Landing() {
     const navigate = useNavigate();

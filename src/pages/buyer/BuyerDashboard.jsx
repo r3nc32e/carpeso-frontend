@@ -1,3 +1,4 @@
+import { IMG_BASE } from '../../api/config';
 import { useState, useEffect } from 'react';
 import { Car, ClipboardList, ShieldCheck, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -5,11 +6,11 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import usePageTitle from '../../hooks/usePageTitle';
 
-const IMG_BASE = 'http://localhost:8080/api/files';
+
 
 function BuyerDashboard() {
     usePageTitle('Dashboard');
-    const { user } = useAuth();
+    const { user, token } = useAuth();
     const navigate = useNavigate();
 
     const [orders, setOrders] = useState([]);

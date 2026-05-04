@@ -1,5 +1,6 @@
+import { BASE_URL } from '../../api/config';
 import { useState, useEffect } from 'react';
-import { TrendingUp, Download } from 'lucide-react';
+import { Download } from 'lucide-react';
 import api from '../../api/axios';
 import usePageTitle from '../../hooks/usePageTitle';
 import {
@@ -21,12 +22,15 @@ function SalesAnalytics() {
 
     const fetchData = async () => {
         try {
-            const [statsRes, txRes] = await Promise.all([
+            // ✅ FIXED: fetch independently so one 403 doesn't kill both
+            const [statsRes, txRes] = await Promise.allSettled([
                 api.get('/admin/sales/stats'),
                 api.get('/admin/transactions'),
             ]);
-            setStats(statsRes.data.data);
-            setTransactions(txRes.data.data || []);
+            if (statsRes.status === 'fulfilled')
+                setStats(statsRes.value.data.data);
+            if (txRes.status === 'fulfilled')
+                setTransactions(txRes.value.data.data || []);
         } catch (err) {
             console.error(err);
         } finally {
@@ -39,7 +43,7 @@ function SalesAnalytics() {
         try {
             const token = localStorage.getItem('token');
             const res = await fetch(
-                `http://localhost:8080/api/admin/sales/report?period=${period}`,
+                `${BASE_URL}/api/admin/sales/report?period=${period}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             if (!res.ok) throw new Error('Export failed!');
@@ -59,11 +63,10 @@ function SalesAnalytics() {
         }
     };
 
-    // Monthly chart data
     const getMonthlyData = () => {
         const months = ['Jan','Feb','Mar','Apr','May','Jun',
                         'Jul','Aug','Sep','Oct','Nov','Dec'];
-        const data = months.map((month, i) => {
+        return months.map((month, i) => {
             const monthTx = transactions.filter(t => {
                 const d = new Date(t.createdAt);
                 return d.getMonth() === i &&
@@ -74,10 +77,8 @@ function SalesAnalytics() {
                 sum + (Number(t.amount) || 0), 0);
             return { month, revenue, count: monthTx.length };
         });
-        return data;
     };
 
-    // Top vehicles
     const getTopVehicles = () => {
         const map = {};
         transactions
@@ -91,7 +92,6 @@ function SalesAnalytics() {
         return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 5);
     };
 
-    // Payment breakdown
     const getPaymentBreakdown = () => {
         const map = {};
         transactions.forEach(t => {

@@ -6,5 +6,8 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    hmr: true,
+    // HTTPS disabled — both frontend and backend run HTTP during development
+    // Before presentation: enable https:true here AND uncomment TLS in application.properties
   }
 })

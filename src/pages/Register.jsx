@@ -1,3 +1,4 @@
+import { BASE_URL } from '../api/config';
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -126,7 +127,7 @@ function Register() {
                 try {
                     const fd1 = new FormData();
                     fd1.append('file', primaryIdFile);
-                    await fetch('http://localhost:8080/api/buyer/profile/id/primary', {
+                    await fetch('${BASE_URL}/api/buyer/profile/id/primary', {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${data.token}` },
                         body: fd1,
@@ -137,7 +138,7 @@ function Register() {
                 try {
                     const fd2 = new FormData();
                     fd2.append('file', secondaryIdFile);
-                    await fetch('http://localhost:8080/api/buyer/profile/id/secondary', {
+                    await fetch('${BASE_URL}/api/buyer/profile/id/secondary', {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${data.token}` },
                         body: fd2,

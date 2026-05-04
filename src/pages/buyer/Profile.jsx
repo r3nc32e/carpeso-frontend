@@ -1,3 +1,4 @@
+import { IMG_BASE } from '../../api/config';
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -168,17 +169,55 @@ function Profile() {
     }
   };
 
+  const pwChecks = {
+    length: passwordForm.newPassword.length >= 8,
+    upper: /[A-Z]/.test(passwordForm.newPassword),
+    lower: /[a-z]/.test(passwordForm.newPassword),
+    number: /[0-9]/.test(passwordForm.newPassword),
+    special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(
+      passwordForm.newPassword,
+    ),
+  };
+  const pwStrength = Object.values(pwChecks).filter(Boolean).length;
+  const pwStrengthColor = [
+    "",
+    "bg-red-500",
+    "bg-orange-400",
+    "bg-yellow-400",
+    "bg-blue-400",
+    "bg-green-500",
+  ][pwStrength];
+  const pwStrengthLabel = ["", "Very Weak", "Weak", "Fair", "Good", "Strong"][
+    pwStrength
+  ];
+
   const handleRequestPasswordOtp = async () => {
     if (!passwordForm.currentPassword) {
       setError("Please enter your current password first!");
       return;
     }
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setError("New passwords do not match!");
+    if (!pwChecks.length) {
+      setError("New password must be at least 8 characters!");
       return;
     }
-    if (passwordForm.newPassword.length < 8) {
-      setError("Password must be at least 8 characters!");
+    if (!pwChecks.upper) {
+      setError("New password must have at least 1 uppercase letter!");
+      return;
+    }
+    if (!pwChecks.lower) {
+      setError("New password must have at least 1 lowercase letter!");
+      return;
+    }
+    if (!pwChecks.number) {
+      setError("New password must have at least 1 number!");
+      return;
+    }
+    if (!pwChecks.special) {
+      setError("New password must have at least 1 special character!");
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setError("New passwords do not match!");
       return;
     }
     setSendingOtp(true);
@@ -189,7 +228,7 @@ function Profile() {
       setSuccess("OTP sent to your email!");
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError("Failed to send OTP!");
+      setError("Failed to send OTP! Please try again.");
     } finally {
       setSendingOtp(false);
     }
@@ -615,7 +654,7 @@ function Profile() {
               <div className="space-y-2">
                 <div className="border border-gray-200 rounded-xl overflow-hidden">
                   <img
-                    src={`http://localhost:8080/api/files${profileData.primaryIdUrl.replace("/uploads", "")}`}
+                    src={`${IMG_BASE}${profileData.primaryIdUrl.replace("/uploads", "")}`}
                     alt="Primary ID"
                     className="w-full h-40 object-contain bg-gray-50"
                     onError={(e) => {
@@ -640,24 +679,28 @@ function Profile() {
                     Replace
                     <input
                       type="file"
-                      accept="image/*,.pdf"
+                      accept="image/jpeg,image/png,image/jpg,image/gif,image/webp"
                       className="hidden"
                       onChange={async (e) => {
-                        if (e.target.files[0]) {
-                          const fd = new FormData();
-                          fd.append("file", e.target.files[0]);
-                          try {
-                            await api.post("/buyer/profile/id/primary", fd, {
-                              headers: {
-                                "Content-Type": "multipart/form-data",
-                              },
-                            });
-                            setSuccess("Primary ID updated!");
-                            fetchProfile();
-                            setTimeout(() => setSuccess(""), 3000);
-                          } catch (err) {
-                            setError("Failed to upload!");
-                          }
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        if (!file.type.startsWith("image/")) {
+                          setError(
+                            "Only image files (JPG, PNG) are accepted for ID upload!",
+                          );
+                          return;
+                        }
+                        const fd = new FormData();
+                        fd.append("file", file);
+                        try {
+                          await api.post("/buyer/profile/id/primary", fd, {
+                            headers: { "Content-Type": "multipart/form-data" },
+                          });
+                          setSuccess("Primary ID uploaded!");
+                          fetchProfile();
+                          setTimeout(() => setSuccess(""), 3000);
+                        } catch (err) {
+                          setError("Failed to upload!");
                         }
                       }}
                     />
@@ -707,7 +750,7 @@ function Profile() {
               <div className="space-y-2">
                 <div className="border border-gray-200 rounded-xl overflow-hidden">
                   <img
-                    src={`http://localhost:8080/api/files${profileData.secondaryIdUrl.replace("/uploads", "")}`}
+                    src={`${IMG_BASE}${profileData.secondaryIdUrl.replace("/uploads", "")}`}
                     alt="Secondary ID"
                     className="w-full h-40 object-contain bg-gray-50"
                     onError={(e) => {
@@ -854,6 +897,54 @@ function Profile() {
                     {showNew ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                {passwordForm.newPassword && (
+                  <div className="mt-2">
+                    <div className="flex gap-1 mb-1">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <div
+                          key={i}
+                          className={`h-1.5 flex-1 rounded-full ${
+                            i <= pwStrength ? pwStrengthColor : "bg-gray-200"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <p
+                      className={`text-xs font-semibold ${
+                        pwStrength <= 2
+                          ? "text-red-500"
+                          : pwStrength === 3
+                            ? "text-yellow-500"
+                            : pwStrength === 4
+                              ? "text-blue-500"
+                              : "text-green-500"
+                      }`}
+                    >
+                      {pwStrengthLabel}
+                    </p>
+                    <div className="grid grid-cols-2 gap-1 mt-1">
+                      {[
+                        { check: pwChecks.length, label: "Min. 8 characters" },
+                        { check: pwChecks.upper, label: "Uppercase letter" },
+                        { check: pwChecks.lower, label: "Lowercase letter" },
+                        { check: pwChecks.number, label: "Number (0-9)" },
+                        {
+                          check: pwChecks.special,
+                          label: "Special character",
+                        },
+                      ].map(({ check, label }) => (
+                        <div
+                          key={label}
+                          className={`flex items-center gap-1 text-xs ${
+                            check ? "text-green-600" : "text-gray-400"
+                          }`}
+                        >
+                          {check ? "✓" : "○"} {label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className={labelClass}>Confirm New Password</label>

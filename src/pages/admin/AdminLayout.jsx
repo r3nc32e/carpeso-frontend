@@ -4,13 +4,14 @@ import { useAuth } from '../../context/AuthContext';
 import {
     LayoutDashboard, Car, ClipboardList, Users,
     ScrollText, ShieldCheck, Menu, X, LogOut,
-    Tag, Star, TrendingUp, UserCircle
+    Tag, Star, TrendingUp, UserCircle, ShieldAlert, Shield
 } from 'lucide-react';
 import NotificationDropdown from '../../components/NotificationDropdown';
 
 function AdminLayout({ children }) {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
@@ -23,11 +24,13 @@ function AdminLayout({ children }) {
         { label: 'Vehicles', icon: <Car size={18} />, path: '/admin/vehicles', show: isSuperAdmin || privilege === 'INVENTORY_MANAGER' },
         { label: 'Categories', icon: <Tag size={18} />, path: '/admin/categories', show: isSuperAdmin || privilege === 'INVENTORY_MANAGER' },
         { label: 'Transactions', icon: <ClipboardList size={18} />, path: '/admin/transactions', show: isSuperAdmin || privilege === 'TRANSACTION_MANAGER' },
+        { label: 'Warranty Claims', icon: <ShieldAlert size={18} />, path: '/admin/warranty-claims', show: isSuperAdmin || privilege === 'TRANSACTION_MANAGER' },
         { label: 'Users', icon: <Users size={18} />, path: '/admin/users', show: isSuperAdmin || privilege === 'ACCOUNT_MANAGER' },
         { label: 'Reviews', icon: <Star size={18} />, path: '/admin/reviews', show: isSuperAdmin || privilege === 'CONTENT_MODERATOR' },
         { label: 'Audit Logs', icon: <ScrollText size={18} />, path: '/admin/audit-logs', show: isSuperAdmin || privilege === 'SALES_ANALYST' },
         { label: 'Sales Analytics', icon: <TrendingUp size={18} />, path: '/admin/sales', show: isSuperAdmin || privilege === 'SALES_ANALYST' },
         { label: 'Manage Admins', icon: <ShieldCheck size={18} />, path: '/admin/manage-admins', show: isSuperAdmin },
+        { label: 'Security Info', icon: <Shield size={18} />,      path: '/admin/security',       show: true },
         { label: 'My Profile', icon: <UserCircle size={18} />, path: '/admin/profile', show: true },
     ];
 
@@ -42,11 +45,11 @@ function AdminLayout({ children }) {
     const handleLogout = () => {
         logout();
         navigate('/login');
+        setShowLogoutConfirm(false);
     };
 
-    // ✅ Sidebar nav list — pure JSX, not a nested component
     const renderNav = (isMobile) => (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-4 border-b border-red-500 flex-shrink-0">
                 {(isMobile || sidebarOpen) && (
@@ -58,12 +61,12 @@ function AdminLayout({ children }) {
                 )}
                 {isMobile ? (
                     <button type="button" onClick={() => setMobileOpen(false)}
-                        className="text-white hover:bg-red-700 p-1.5 rounded-lg transition ml-auto">
+                        className="text-white hover:bg-red-700 p-1.5 rounded-lg transition ml-auto flex-shrink-0">
                         <X size={18} />
                     </button>
                 ) : (
                     <button type="button" onClick={() => setSidebarOpen(p => !p)}
-                        className="text-white hover:bg-red-700 p-1.5 rounded-lg transition ml-auto">
+                        className="text-white hover:bg-red-700 p-1.5 rounded-lg transition ml-auto flex-shrink-0">
                         <Menu size={18} />
                     </button>
                 )}
@@ -80,21 +83,25 @@ function AdminLayout({ children }) {
                 </div>
             )}
 
-            {/* Nav — scrollable */}
+            {/* Nav — scrollable, flex-1 with min-h-0 */}
             <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1 min-h-0">
                 {visibleNavItems.map(item => (
                     <button key={item.path} type="button"
                         onClick={() => handleNavClick(item.path)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition text-left ${isActive(item.path) ? 'bg-white text-red-600 shadow-sm' : 'text-red-100 hover:bg-red-700 hover:text-white'}`}>
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition text-left ${
+                            isActive(item.path)
+                                ? 'bg-white text-red-600 shadow-sm'
+                                : 'text-red-100 hover:bg-red-700 hover:text-white'
+                        }`}>
                         <span className="flex-shrink-0">{item.icon}</span>
                         {(isMobile || sidebarOpen) && <span className="truncate">{item.label}</span>}
                     </button>
                 ))}
             </nav>
 
-            {/* Logout */}
-            <div className="flex-shrink-0 p-3 border-t border-red-500">
-                <button type="button" onClick={handleLogout}
+            {/* Logout — fixed at bottom, never scrolls */}
+            <div className="flex-shrink-0 p-3 border-t border-red-500 bg-red-600">
+                <button type="button" onClick={() => setShowLogoutConfirm(true)}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-100 hover:bg-red-700 hover:text-white transition">
                     <LogOut size={18} className="flex-shrink-0" />
                     {(isMobile || sidebarOpen) && <span>Logout</span>}
@@ -105,6 +112,29 @@ function AdminLayout({ children }) {
 
     return (
         <div className="min-h-screen flex bg-gray-100">
+            {/* Logout Confirmation Modal */}
+            {showLogoutConfirm && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <LogOut size={28} className="text-red-600" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-800 mb-2">Confirm Logout</h3>
+                        <p className="text-gray-500 text-sm mb-6">Are you sure you want to logout from Carpeso Admin?</p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setShowLogoutConfirm(false)}
+                                className="flex-1 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition font-semibold">
+                                Cancel
+                            </button>
+                            <button onClick={handleLogout}
+                                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition">
+                                Yes, Logout
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {mobileOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
                     onClick={() => setMobileOpen(false)} />
@@ -120,7 +150,7 @@ function AdminLayout({ children }) {
                 {renderNav(true)}
             </aside>
 
-            {/* Main */}
+            {/* Main Content */}
             <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-16'}`}>
                 <header className="bg-white shadow-sm px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-10">
                     <div className="flex items-center gap-3">

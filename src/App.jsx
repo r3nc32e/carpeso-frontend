@@ -19,18 +19,16 @@ import Categories from './pages/admin/Categories';
 import AdminReviews from './pages/admin/Reviews';
 import SalesAnalytics from './pages/admin/SalesAnalytics';
 import AdminProfile from './pages/admin/Profile';
+import AdminWarrantyClaims from './pages/admin/WarrantyClaims';
+import SecurityInfo from './pages/admin/SecurityInfo';
 
 import BuyerLayout from './pages/buyer/BuyerLayout';
 import BuyerDashboard from './pages/buyer/BuyerDashboard';
 import Catalog from './pages/buyer/Catalog';
 import MyOrders from './pages/buyer/MyOrders';
 import WarrantyClaims from './pages/buyer/WarrantyClaims';
-import Reviews from './pages/buyer/Reviews';
 import VehicleDetail from './pages/buyer/VehicleDetail';
 import BuyerProfile from './pages/buyer/Profile';
-
-// Public VehicleDetail for guests
-import PublicVehicleDetail from './pages/buyer/VehicleDetail';
 
 const ProtectedRoute = ({ children, roles }) => {
     const { isAuthenticated, user } = useAuth();
@@ -43,13 +41,8 @@ const PrivilegeRoute = ({ children, privilege }) => {
     const { isAuthenticated, user } = useAuth();
     if (!isAuthenticated()) return <Navigate to="/login" replace />;
     if (!['ADMIN', 'SUPERADMIN'].includes(user?.role)) return <Navigate to="/login" replace />;
-    // SuperAdmin can access everything
-    if (user?.role === 'SUPERADMIN') {
-        return <AdminLayout>{children}</AdminLayout>;
-    }
-    // Check if admin has the required privilege
-    const hasPrivilege = user?.privileges?.includes(privilege);
-    if (!hasPrivilege) return <Navigate to="/admin/dashboard" replace />;
+    if (user?.role === 'SUPERADMIN') return <AdminLayout>{children}</AdminLayout>;
+    if (!user?.privileges?.includes(privilege)) return <Navigate to="/admin/dashboard" replace />;
     return <AdminLayout>{children}</AdminLayout>;
 };
 
@@ -92,61 +85,46 @@ function App() {
 
     return (
         <Routes>
-            {/* Landing — default for guests, redirect if authenticated */}
             <Route path="/"
-                element={
-                    isAuthenticated()
-                        ? <Navigate to={getDashboard()} replace />
-                        : <Landing />
-                }
+                element={isAuthenticated()
+                    ? <Navigate to={getDashboard()} replace />
+                    : <Landing />}
             />
-
-            {/* Auth Routes */}
             <Route path="/login"
-                element={isAuthenticated() ? <Navigate to={getDashboard()} replace /> : <Login />} />
+                element={isAuthenticated()
+                    ? <Navigate to={getDashboard()} replace />
+                    : <Login />}
+            />
             <Route path="/register"
-                element={isAuthenticated() ? <Navigate to="/buyer/dashboard" replace /> : <Register />} />
+                element={isAuthenticated()
+                    ? <Navigate to="/buyer/dashboard" replace />
+                    : <Register />}
+            />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
+            <Route path="/vehicles/:id" element={<VehicleDetail />} />
 
-            {/* Public Vehicle Detail — guests can view */}
-            <Route path="/vehicles/:id" element={<PublicVehicleDetail />} />
-
-            {/* Admin Routes — Overview accessible to all admins */}
             <Route path="/admin/dashboard" element={<AdminRoute><Overview /></AdminRoute>} />
             <Route path="/admin/profile" element={<AdminRoute><AdminProfile /></AdminRoute>} />
+            <Route path="/admin/vehicles" element={<PrivilegeRoute privilege="INVENTORY_MANAGER"><Vehicles /></PrivilegeRoute>} />
+            <Route path="/admin/categories" element={<PrivilegeRoute privilege="INVENTORY_MANAGER"><Categories /></PrivilegeRoute>} />
+            <Route path="/admin/transactions" element={<PrivilegeRoute privilege="TRANSACTION_MANAGER"><Transactions /></PrivilegeRoute>} />
+            <Route path="/admin/users" element={<PrivilegeRoute privilege="ACCOUNT_MANAGER"><Users /></PrivilegeRoute>} />
+            <Route path="/admin/reviews" element={<PrivilegeRoute privilege="CONTENT_MODERATOR"><AdminReviews /></PrivilegeRoute>} />
+            <Route path="/admin/audit-logs" element={<PrivilegeRoute privilege="SALES_ANALYST"><AuditLogs /></PrivilegeRoute>} />
+            <Route path="/admin/sales" element={<PrivilegeRoute privilege="SALES_ANALYST"><SalesAnalytics /></PrivilegeRoute>} />
+            <Route path="/admin/manage-admins" element={<SuperAdminRoute><ManageAdmins /></SuperAdminRoute>} />
+            <Route path="/admin/security" element={<AdminRoute><SecurityInfo /></AdminRoute>} />
+            <Route path="/admin/warranty-claims" element={<PrivilegeRoute privilege="TRANSACTION_MANAGER"><AdminWarrantyClaims /></PrivilegeRoute>} />
 
-            {/* Privilege-protected admin routes */}
-            <Route path="/admin/vehicles"
-                element={<PrivilegeRoute privilege="INVENTORY_MANAGER"><Vehicles /></PrivilegeRoute>} />
-            <Route path="/admin/categories"
-                element={<PrivilegeRoute privilege="INVENTORY_MANAGER"><Categories /></PrivilegeRoute>} />
-            <Route path="/admin/transactions"
-                element={<PrivilegeRoute privilege="TRANSACTION_MANAGER"><Transactions /></PrivilegeRoute>} />
-            <Route path="/admin/users"
-                element={<PrivilegeRoute privilege="ACCOUNT_MANAGER"><Users /></PrivilegeRoute>} />
-            <Route path="/admin/reviews"
-                element={<PrivilegeRoute privilege="CONTENT_MODERATOR"><AdminReviews /></PrivilegeRoute>} />
-            <Route path="/admin/audit-logs"
-                element={<PrivilegeRoute privilege="SALES_ANALYST"><AuditLogs /></PrivilegeRoute>} />
-            <Route path="/admin/sales"
-                element={<PrivilegeRoute privilege="SALES_ANALYST"><SalesAnalytics /></PrivilegeRoute>} />
-
-            {/* SuperAdmin only */}
-            <Route path="/admin/manage-admins"
-                element={<SuperAdminRoute><ManageAdmins /></SuperAdminRoute>} />
-
-            {/* Buyer Routes */}
             <Route path="/buyer/dashboard" element={<BuyerRoute><BuyerDashboard /></BuyerRoute>} />
             <Route path="/buyer/catalog" element={<BuyerRoute><Catalog /></BuyerRoute>} />
             <Route path="/buyer/vehicles/:id" element={<BuyerRoute><VehicleDetail /></BuyerRoute>} />
             <Route path="/buyer/orders" element={<BuyerRoute><MyOrders /></BuyerRoute>} />
             <Route path="/buyer/warranty-claims" element={<BuyerRoute><WarrantyClaims /></BuyerRoute>} />
-            <Route path="/buyer/reviews" element={<BuyerRoute><Reviews /></BuyerRoute>} />
             <Route path="/buyer/profile" element={<BuyerRoute><BuyerProfile /></BuyerRoute>} />
 
-            {/* Catch all */}
             <Route path="*" element={<Navigate to={getDashboard()} replace />} />
         </Routes>
     );
